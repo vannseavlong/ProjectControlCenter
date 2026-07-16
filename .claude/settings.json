@@ -16,7 +16,8 @@
       "Bash(node -e ' *)",
       "Bash(pnpm db:sync)",
       "Bash(/usr/bin/curl -s -H 'Cookie: pcc_session=eyJlbWFpbCI6InNlYXZsb25ndmFubjU1QGdtYWlsLmNvbSIsImV4cGlyZXMiOjE3ODY3ODE0ODE1OTJ9.Z3AYKOzorFpfsRC0NMHW5uJTpPO2fEuFJGVLSjhKpqo' http://localhost:3001/api/projects)",
-      "Bash(/usr/bin/curl -s -H 'Cookie: pcc_session=eyJlbWFpbCI6InNlYXZsb25ndmFubjU1QGdtYWlsLmNvbSIsImV4cGlyZXMiOjE3ODY3ODE0ODE1OTJ9.Z3AYKOzorFpfsRC0NMHW5uJTpPO2fEuFJGVLSjhKpqo' -H 'Content-Type: application/json' -X POST http://localhost:3001/api/projects -d '{\"project_name\":\"Test Service\",\"type\":\"backend\",\"platform\":\"render\"}')"
+      "Bash(/usr/bin/curl -s -H 'Cookie: pcc_session=eyJlbWFpbCI6InNlYXZsb25ndmFubjU1QGdtYWlsLmNvbSIsImV4cGlyZXMiOjE3ODY3ODE0ODE1OTJ9.Z3AYKOzorFpfsRC0NMHW5uJTpPO2fEuFJGVLSjhKpqo' -H 'Content-Type: application/json' -X POST http://localhost:3001/api/projects -d '{\"project_name\":\"Test Service\",\"type\":\"backend\",\"platform\":\"render\"}')",
+      "Bash(kill 45208 81475)"
     ]
   }
 }
