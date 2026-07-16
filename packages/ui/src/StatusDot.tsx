@@ -7,9 +7,9 @@ import { cn } from "./cn";
 export type StatusDotTone = "up" | "down" | "sleeping" | "unknown";
 
 const toneClasses: Record<StatusDotTone, string> = {
-  up: "bg-status-up",
-  down: "bg-status-down",
-  sleeping: "bg-status-sleeping",
+  up: "bg-status-up signal-glow-up motion-safe:animate-signal-pulse",
+  down: "bg-status-down signal-glow-down",
+  sleeping: "bg-status-sleeping signal-glow-sleeping",
   unknown: "bg-status-unknown",
 };
 
@@ -19,11 +19,12 @@ export interface StatusDotProps {
   className?: string;
 }
 
+/** Signal light: glows for `up`, dims for `down`/`sleeping` — see `.signal-glow-*` in globals.css. The pulse is `motion-safe:` gated so `prefers-reduced-motion` gets a static glow instead. */
 export function StatusDot({ tone, label, className }: StatusDotProps) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <span className={cn("h-2.5 w-2.5 rounded-full", toneClasses[tone])} aria-hidden />
-      {label ? <span className="text-sm text-slate-600 dark:text-slate-300">{label}</span> : null}
+      {label ? <span className="text-sm text-muted-foreground">{label}</span> : null}
     </span>
   );
 }

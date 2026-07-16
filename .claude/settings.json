@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @pcc/ui type-check)",
+      "Bash(lsof -i :3000 -sTCP:LISTEN)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} redirect=%{redirect_url}\\\\n\" -H \"Cookie: pcc_session=garbage.value\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}\\\\n' -H 'Cookie: __TRACKED_VAR__' http://localhost:3001/)",
+      "Bash(curl -s -i -X POST -H 'Cookie: __TRACKED_VAR__' http://localhost:3001/api/auth/logout)",
+      "Bash(lsof -i :3001 -sTCP:LISTEN)",
+      "Bash(lsof -i :3002 -sTCP:LISTEN)",
+      "Bash(pnpm --filter @pcc/web dev)",
+      "Bash(lsof -ti :3001 -sTCP:LISTEN)",
+      "Bash(grep -vE \"SECRET=.+$\")",
+      "Bash(grep -vE \"SECRET=.+$|HASH=.+$\")",
+      "Bash(ps -p 45208 -o pid,ppid,command)",
+      "Bash(node -e ' *)",
+      "Bash(pnpm db:sync)",
+      "Bash(/usr/bin/curl -s -H 'Cookie: pcc_session=eyJlbWFpbCI6InNlYXZsb25ndmFubjU1QGdtYWlsLmNvbSIsImV4cGlyZXMiOjE3ODY3ODE0ODE1OTJ9.Z3AYKOzorFpfsRC0NMHW5uJTpPO2fEuFJGVLSjhKpqo' http://localhost:3001/api/projects)",
+      "Bash(/usr/bin/curl -s -H 'Cookie: pcc_session=eyJlbWFpbCI6InNlYXZsb25ndmFubjU1QGdtYWlsLmNvbSIsImV4cGlyZXMiOjE3ODY3ODE0ODE1OTJ9.Z3AYKOzorFpfsRC0NMHW5uJTpPO2fEuFJGVLSjhKpqo' -H 'Content-Type: application/json' -X POST http://localhost:3001/api/projects -d '{\"project_name\":\"Test Service\",\"type\":\"backend\",\"platform\":\"render\"}')"
+    ]
+  }
+}

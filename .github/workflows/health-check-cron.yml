@@ -1,0 +1,21 @@
+name: Backend health-check cron
+
+# Resolves plan-doc §10's cron decision: Vercel Cron's Hobby-plan tier only supports daily
+# triggers, which is too infrequent to keep a free-tier Render service (sleeps after ~15min
+# idle) warm. A GitHub Actions schedule can run every few minutes for free, so it's the default
+# trigger for apps/web's /api/cron/health-check route. Swap to Vercel Cron in vercel.json instead
+# if this project ever moves to a Pro plan.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/health-check
+        run: |
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/cron/health-check"

@@ -1,25 +1,34 @@
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "./cn";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "destructive" | "ghost";
+  asChild?: boolean;
 }
 
 const variantClasses: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-slate-900 text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900",
-  secondary:
-    "bg-transparent text-slate-900 border border-slate-300 hover:bg-slate-100 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "bg-transparent text-foreground border border-input hover:bg-accent hover:text-accent-foreground",
+  destructive: "bg-destructive text-foreground hover:bg-destructive/90",
+  ghost: "bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground",
 };
 
-export function Button({ variant = "primary", className, ...props }: ButtonProps) {
+/** `forwardRef` (and the `asChild` escape hatch) matter here — Radix triggers (`DialogTrigger asChild`, `DropdownMenuTrigger asChild`) clone their child and need a real DOM ref to land on. */
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "primary", className, asChild = false, ...props },
+  ref,
+) {
+  const Comp = asChild ? Slot : "button";
   return (
-    <button
+    <Comp
+      ref={ref}
       className={cn(
-        "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
         variantClasses[variant],
         className,
       )}
       {...props}
     />
   );
-}
+});

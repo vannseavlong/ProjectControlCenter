@@ -22,8 +22,11 @@ function buildAdapter(): SheetAdapter {
       clientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
       redirectUri: requireEnv("GOOGLE_REDIRECT_URI"),
     },
-    // TODO(Phase 1): load stored OAuth tokens for the admin actor instead of undefined.
-    tokens: undefined,
+    // Single-actor tool (plan §5) — a static refresh token is enough, no need for the pluggable
+    // `tokenStore` (get/set per actorId) the adapter also supports. `googleapis`'s OAuth2 client
+    // auto-refreshes the access token from just `refresh_token` on first use (see SheetClient's
+    // `auth.setCredentials`), so nothing else needs to be stored.
+    tokens: { refresh_token: requireEnv("ADMIN_OAUTH_REFRESH_TOKEN") },
   });
 
   instance.registerSchemas([projectsSchema, agentsSchema, pingLogsSchema, commandQueueSchema]);

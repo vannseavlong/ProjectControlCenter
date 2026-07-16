@@ -25,69 +25,100 @@ Dark-first theme. The product concept already is a spaceship command deck for yo
 projects/agents — lean into it, but keep data still the easiest thing on screen to read; this is
 a control room, not a marketing page.
 
-- [ ] Palette: override `theme.css`'s oklch variables (see reference above) with a deep-space set
+- [x] Palette: override `theme.css`'s oklch variables (see reference above) with a deep-space set
       — near-black navy/indigo `--background`, violet/indigo `--card` and `--sidebar`, a cyan or
       magenta `--primary` used sparingly for active/focus states, `--chart-1..5` tuned to
       nebula-ish cyan/violet/magenta/amber rather than the default muted blues
-- [ ] Status colors stay legible against the dark palette: keep `--status-up` green /
+      — ported as L-C-H triplets (not full `oklch(...)` strings) so Tailwind's `/NN` opacity
+      modifiers work; `darkMode: "class"` + `<html class="dark">` forces dark-first with no toggle yet.
+- [x] Status colors stay legible against the dark palette: keep `--status-up` green /
       `--status-down` red / `--status-sleeping` amber high-contrast — don't let the theme's mood
       colors compete with status meaning (`StatusDot` in `packages/ui` already isolates these)
-- [ ] Background treatment: subtle starfield/nebula gradient behind the app shell (CSS
+- [x] Background treatment: subtle starfield/nebula gradient behind the app shell (CSS
       gradient/canvas, not a heavy image — keep it cheap to render and non-distracting behind text)
-- [ ] "Signal light" glow on live status indicators (small box-shadow glow on `StatusDot` when
+      — `.starfield-backdrop` in globals.css, three radial-gradients, `background-attachment: fixed`.
+- [x] "Signal light" glow on live status indicators (small box-shadow glow on `StatusDot` when
       `up`, dimmed when `down`/`sleeping`) — the one place motion/glow earns its keep, since it's
       carrying real status information
-- [ ] Sidebar styled as a ship's nav panel: active route gets a left-edge glow bar, icons from
+- [x] Sidebar styled as a ship's nav panel: active route gets a left-edge glow bar, icons from
       `lucide-react` (already a shadcn/ui dependency)
-- [ ] Typography: keep body text on a normal readable sans; reserve a monospace face for
+- [x] Typography: keep body text on a normal readable sans; reserve a monospace face for
       telemetry-flavored data (timestamps, response-time ms, IDs) to sell the "console readout"
       feel without hurting readability
-- [ ] Respect `prefers-reduced-motion` — any glow/pulse/twinkle effects must have a static fallback
-- [ ] Land this as CSS-variable overrides in `apps/web/src/app/globals.css` (or a
+- [x] Respect `prefers-reduced-motion` — any glow/pulse/twinkle effects must have a static fallback
+      — global media-query kill-switch in globals.css + `motion-safe:` on the signal pulse animation.
+- [x] Land this as CSS-variable overrides in `apps/web/src/app/globals.css` (or a
       `packages/config` Tailwind preset addition) — never hardcode the palette inside individual
       components, so it stays swappable
 
 ## 0. Shell / shared
-- [ ] Sidebar + topbar layout (replace the current top-tab `NavBar`) with active-route highlighting
-- [ ] Add shadcn/ui primitives to `packages/ui`: Table, Badge, Dialog, Dropdown, Input, Select, Form, Tabs, Toast/Sonner, Skeleton, Avatar
-- [ ] Loading skeletons + empty states for every list view
-- [ ] Global toast/notification system for action feedback (wake triggered, agent created, etc.)
-- [ ] Auth gate (plan §10 open decision — password gate vs real auth) applied at layout level
+- [x] Sidebar + topbar layout (replace the current top-tab `NavBar`) with active-route highlighting
+      — custom `AppSidebar`/`Topbar`/`AppShell` (not the full Radix-context shadcn `Sidebar`
+      primitive with cookie-persisted collapse state — this app didn't need that much machinery yet).
+- [x] Add shadcn/ui primitives to `packages/ui`: Table, Badge, Dialog, Dropdown, Input, Select, Form, Tabs, Toast/Sonner, Skeleton, Avatar
+      — all ported except **Form**: skipped the react-hook-form-style `Form`/`FormField` wrapper in
+      favor of plain controlled `Input`/`Label`/`Textarea` per form — no validation schema library
+      in the project yet, so the extra abstraction wasn't earning its keep. Also added `EmptyState`
+      and `Sparkline` (not in the original list, needed for task 2/dashboard).
+- [x] Loading skeletons + empty states for every list view
+- [x] Global toast/notification system for action feedback (wake triggered, agent created, etc.)
+- [x] Auth gate (plan §10 open decision — password gate vs real auth) applied at layout level
+      — resolved per user: email/password *and* Google OAuth, single allowed identity
+      (`AUTH_ALLOWED_EMAIL`). Gate lives in `apps/web/src/proxy.ts` (Next 16 renamed
+      `middleware.ts` → `proxy.ts`), not the layout — the correct/idiomatic place for a redirect-
+      before-render check. See `apps/web/.env.example` for new vars.
 
 ## 1. Dashboard (`/`)
-- [ ] Summary cards: backend up/down count, frontend live count, active agent count
-- [ ] Recent ping activity feed (last N pings across all projects)
-- [ ] Quick links into Backend/Frontend/Agents tabs
+- [x] Summary cards: backend up/down count, frontend live count, active agent count
+- [x] Recent ping activity feed (last N pings across all projects)
+      — needed a new `GET /api/ping-logs` route (didn't exist; small additive read-only route,
+      flagged in agent-chat.md).
+- [x] Quick links into Backend/Frontend/Agents tabs
 
 ## 2. Backend Services (`/backend`)
-- [ ] Service list table: name, status dot, last-checked, response-time sparkline
-- [ ] "Wake up" button with spinner state while polling for 200
-- [ ] Uptime history chart (per service, phase 2)
-- [ ] Add/edit project form (Render fields: `render_service_id`, `url`, etc.)
+- [x] Service list table: name, status dot, last-checked, response-time sparkline
+- [x] "Wake up" button with spinner state while polling for 200
+      — button reflects the mutation's pending state; the actual poll-for-200 loop is server-side
+      in `wakeService` (`apps/web/src/lib/render.ts`, already built by backend).
+- [ ] Uptime history chart (per service, phase 2) — deferred, as scoped.
+- [x] Add/edit project form (Render fields: `render_service_id`, `url`, etc.)
+      — **add** only. No `PATCH /api/projects/:id` exists yet, so edit isn't wired — flagged in
+      agent-chat.md, will build the moment that route lands.
 
 ## 3. Frontend Sites (`/frontend`)
-- [ ] Card grid: thumbnail, live/down badge, "Open site" link, last-deployed time
-- [ ] Add/edit project form (Vercel fields: `vercel_project_id`, `url`)
-- [ ] Thumbnail placeholder state until phase 2 screenshot service lands
+- [x] Card grid: thumbnail, live/down badge, "Open site" link, last-deployed time
+- [x] Add/edit project form (Vercel fields: `vercel_project_id`, `url`) — same add-only caveat as above.
+- [x] Thumbnail placeholder state until phase 2 screenshot service lands
 
 ## 4. Agent Staff (`/agents`)
-- [ ] Roster grid: avatar/name/project/status
-- [ ] Create-agent form: project picker, local path input, brief textarea, persona/name
-- [ ] Fire (soft-delete → status `fired`) and hard-delete actions with confirm dialog
-- [ ] Per-agent detail page: brief, recent activity, "talk to this agent" → Voice Console
+- [x] Roster grid: avatar/name/project/status
+- [x] Create-agent form: project picker, local path input, brief textarea, persona/name
+- [x] Fire (soft-delete → status `fired`) and hard-delete actions with confirm dialog
+- [x] Per-agent detail page: brief, recent activity, "talk to this agent" → Voice Console
+      — "recent activity" is an honest empty state (no agent-bridge yet, nothing to show).
 
 ## 5. Voice Console (`/voice`)
-- [ ] Agent picker
-- [ ] Mic capture UI (Web Speech API) + live transcript display
-- [ ] Reply playback (SpeechSynthesis) + text fallback log
-- [ ] Canned quick-command buttons ("status report", "what's blocking you", "assign a task")
+- [x] Agent picker
+- [x] Mic capture UI (Web Speech API) + live transcript display
+- [x] Reply playback (SpeechSynthesis) + text fallback log
+- [x] Canned quick-command buttons ("status report", "what's blocking you", "assign a task")
+      — all UI is real and functional; actually sending still hits the `POST
+      /api/agents/:id/message` 501 stub (blocked on agent-bridge per backend's note) — the page
+      shows an explicit "not wired up yet" banner rather than pretending it works.
 
 ## 6. Settings (`/settings`)
-- [ ] Render API token field
-- [ ] Vercel API token field
-- [ ] Sheet-DB config display (admin sheet ID, connection status via `lsdb doctor`-style check)
-- [ ] Screenshot service key field (phase 2)
+- [x] Render API token field
+- [x] Vercel API token field
+- [x] Sheet-DB config display (admin sheet ID, connection status via `lsdb doctor`-style check)
+- [x] Screenshot service key field (phase 2)
+      — whole page is UI-only against local form state, Save disabled, with an explicit banner:
+      no `/api/settings` route or settings table exists yet (see backend's Open Request in
+      agent-chat.md). Nothing here persists until that lands.
 
 ## Data wiring (cuts across all tabs)
-- [ ] React Query (or SWR) setup for polling `/api/projects` and `/api/agents` on an interval (plan §11: 30–60s, not every render)
-- [ ] Wire every stub API route above once `app-backend.md` tasks land
+- [x] React Query (or SWR) setup for polling `/api/projects` and `/api/agents` on an interval (plan §11: 30–60s, not every render)
+      — chose React Query, 45s default `refetchInterval` in `Providers.tsx`.
+- [x] Wire every stub API route above once `app-backend.md` tasks land
+      — projects (list/create/health/wake/deploy-status) and agents (list/create/patch/delete) are
+      real and wired. Still open: `/api/agents/:id/message` (501, agent-bridge) and `/api/settings`
+      (doesn't exist yet, needs a schema — see agent-chat.md).

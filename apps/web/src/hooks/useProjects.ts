@@ -1,0 +1,58 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@pcc/ui";
+import { api, type CreateProjectInput } from "@/lib/api-client";
+
+const PROJECTS_KEY = ["projects"] as const;
+
+export function useProjects() {
+  return useQuery({ queryKey: PROJECTS_KEY, queryFn: api.projects.list });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateProjectInput) => api.projects.create(input),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      toast.success(`${project.project_name} added`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useWakeProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.projects.wake(id),
+    onSuccess: ({ project, wake }) => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      if (wake.ok) {
+        toast.success(`${project.project_name} is awake (${wake.attempts} attempt${wake.attempts === 1 ? "" : "s"})`);
+      } else {
+        toast.error(`${project.project_name} didn't wake up in time`);
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useCheckProjectHealth() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.projects.health(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDeployStatus(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["deploy-status", id],
+    queryFn: () => api.projects.deployStatus(id as string),
+    enabled: enabled && Boolean(id),
+  });
+}

@@ -6,3 +6,132 @@ html,
 body {
   height: 100%;
 }
+
+/**
+ * "Mission Control" theme — deep-space palette as oklch(L C H) triplets (no leading `oklch()`,
+ * see packages/config/tailwind.preset.mjs for how these are composed into `oklch(var(--x) / <alpha-value>)`
+ * colors so Tailwind's `/NN` opacity modifiers work, matching the shadcn hsl-var convention).
+ * Light palette lives in :root as a fallback; `.dark` is the one actually shipped (dark-first,
+ * forced by `<html class="dark">` in the root layout).
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: 0.99 0.002 260;
+  --foreground: 0.18 0.02 265;
+  --card: 1 0 0;
+  --card-foreground: 0.18 0.02 265;
+  --popover: 1 0 0;
+  --popover-foreground: 0.18 0.02 265;
+  --primary: 0.6 0.15 220;
+  --primary-foreground: 0.99 0.005 220;
+  --secondary: 0.95 0.01 265;
+  --secondary-foreground: 0.25 0.03 265;
+  --muted: 0.95 0.01 265;
+  --muted-foreground: 0.5 0.02 265;
+  --accent: 0.93 0.03 300;
+  --accent-foreground: 0.25 0.03 265;
+  --destructive: 0.58 0.24 25;
+  --border: 0.9 0.01 265;
+  --input: 0.9 0.01 265;
+  --ring: 0.6 0.15 220;
+
+  --chart-1: 0.72 0.16 200;
+  --chart-2: 0.62 0.2 290;
+  --chart-3: 0.65 0.25 330;
+  --chart-4: 0.78 0.16 75;
+  --chart-5: 0.72 0.15 165;
+
+  --sidebar: 0.97 0.006 265;
+  --sidebar-foreground: 0.25 0.03 265;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  --status-up: 0.72 0.19 145;
+  --status-down: 0.63 0.24 25;
+  --status-sleeping: 0.8 0.16 85;
+  --status-unknown: 0.6 0.015 265;
+}
+
+.dark {
+  /* near-black navy/indigo */
+  --background: 0.15 0.025 268;
+  --foreground: 0.94 0.012 260;
+  /* violet/indigo, a shade lifted off background */
+  --card: 0.2 0.04 275;
+  --card-foreground: 0.94 0.012 260;
+  --popover: 0.19 0.038 274;
+  --popover-foreground: 0.94 0.012 260;
+  /* cyan — used sparingly for active/focus states */
+  --primary: 0.78 0.14 205;
+  --primary-foreground: 0.16 0.03 260;
+  --secondary: 0.27 0.045 270;
+  --secondary-foreground: 0.94 0.012 260;
+  --muted: 0.24 0.035 270;
+  --muted-foreground: 0.68 0.02 260;
+  --accent: 0.3 0.08 300;
+  --accent-foreground: 0.95 0.02 300;
+  --destructive: 0.68 0.2 22;
+  --border: 0.32 0.035 272;
+  --input: 0.34 0.04 272;
+  --ring: 0.78 0.14 205;
+
+  /* nebula chart set: cyan / violet / magenta / amber / teal */
+  --chart-1: 0.78 0.14 205;
+  --chart-2: 0.68 0.19 290;
+  --chart-3: 0.68 0.22 335;
+  --chart-4: 0.8 0.15 80;
+  --chart-5: 0.75 0.14 170;
+
+  /* sidebar sits a notch darker/richer than card — the ship's nav panel */
+  --sidebar: 0.18 0.035 272;
+  --sidebar-foreground: 0.88 0.015 260;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: 0.26 0.05 275;
+  --sidebar-accent-foreground: 0.95 0.012 260;
+  --sidebar-border: 0.28 0.03 272;
+  --sidebar-ring: var(--ring);
+
+  /* status colors: high-contrast, deliberately independent of the mood palette above */
+  --status-up: 0.75 0.19 145;
+  --status-down: 0.68 0.22 25;
+  --status-sleeping: 0.82 0.17 85;
+  --status-unknown: 0.62 0.015 265;
+}
+
+/* Signal-light glow — the one place motion/glow carries real status information. */
+.signal-glow-up {
+  box-shadow: 0 0 6px 1px oklch(var(--status-up) / 0.7);
+}
+.signal-glow-down {
+  box-shadow: 0 0 3px 0.5px oklch(var(--status-down) / 0.35);
+}
+.signal-glow-sleeping {
+  box-shadow: 0 0 4px 0.5px oklch(var(--status-sleeping) / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Starfield/nebula backdrop behind the app shell — cheap CSS gradients, no image assets. */
+.starfield-backdrop {
+  background-color: oklch(var(--background));
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% -10%, oklch(var(--chart-2) / 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, oklch(var(--chart-1) / 0.12), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, oklch(var(--chart-3) / 0.08), transparent 60%);
+  background-attachment: fixed;
+}
