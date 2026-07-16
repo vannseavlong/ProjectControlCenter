@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Activity, Server, Globe, Users } from "lucide-react";
 import { Card, EmptyState, Skeleton, StatusDot } from "@pcc/ui";
-import { useProjects } from "@/hooks/useProjects";
+import { useDeployStatuses, useProjects } from "@/hooks/useProjects";
 import { useAgents } from "@/hooks/useAgents";
 import { usePingLogs } from "@/hooks/usePingLogs";
 import { formatRelativeTime, formatResponseTime } from "@/lib/format";
@@ -40,8 +40,15 @@ export default function DashboardPage() {
 
   const backendProjects = projects?.filter((p) => p.type === "backend") ?? [];
   const backendUp = backendProjects.filter((p) => p.status === "up").length;
+
+  // Frontend (Vercel) projects never get /health-pinged like backend services, so project.status
+  // is never updated for them — Vercel's own deployment readyState is the only real live signal
+  // (same fix as the /frontend page's status dot, see lib/format.ts's deployReadyStateToTone).
   const frontendProjects = projects?.filter((p) => p.type === "frontend") ?? [];
-  const frontendLive = frontendProjects.filter((p) => p.status === "up").length;
+  const frontendProjectsWithVercelId = frontendProjects.filter((p) => p.vercel_project_id);
+  const deployStatuses = useDeployStatuses(frontendProjectsWithVercelId.map((p) => p._id));
+  const frontendLive = deployStatuses.filter((q) => q.data?.readyState === "READY").length;
+
   const activeAgents = agents?.filter((a) => a.status === "active").length ?? 0;
 
   const projectById = new Map((projects ?? []).map((p) => [p._id, p]));

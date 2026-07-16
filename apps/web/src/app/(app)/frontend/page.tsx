@@ -5,7 +5,7 @@ import { ExternalLink, GitFork, Globe, ImageOff, Trash2 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton, StatusDot } from "@pcc/ui";
 import type { Project } from "@pcc/types";
 import { useDeleteProject, useProjects, useDeployStatus } from "@/hooks/useProjects";
-import { formatRelativeTime } from "@/lib/format";
+import { deployReadyStateToTone, formatRelativeTime } from "@/lib/format";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -40,7 +40,7 @@ function SiteCard({ project }: { project: Project }) {
       <div className="space-y-2 px-4 pb-4">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-medium">{project.project_name}</span>
-          <StatusDot tone={project.status} />
+          <StatusDot tone={deployReadyStateToTone(deployment?.readyState)} />
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="font-mono">{formatRelativeTime(deployment?.createdAt ?? project.last_checked)}</span>

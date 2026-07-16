@@ -80,6 +80,27 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
       informational, the ping logic (`src/lib/render.ts`'s `pingHealth`, already has its own
       `/health`-then-bare-`url` fallback) is untouched. See `Tasks/app-frontend.md` for the
       matching form field + display badge.
+- [ ] Generic URL-reachability check for non-Vercel frontend hosting, user-requested (e.g. Firebase
+      Hosting, Netlify, GitHub Pages, a custom server) — Vercel's `readyState` only exists for
+      Vercel-hosted projects, so a frontend site hosted elsewhere currently has no live/down signal
+      at all. **Design decided, not yet built:**
+        - Add a `pingUrl()`-style helper (mirrors `pingHealth()` in `src/lib/render.ts`, but pings
+          the bare project `url` directly — no `/health` assumption, since a static frontend host
+          won't have an API health route). Doesn't belong in `render.ts` (that's Render-specific
+          naming/docs) — put it somewhere platform-agnostic, e.g. a new `src/lib/reachability.ts`.
+        - `ProjectPlatform` (`packages/types/src/project.ts`) is currently a strict
+          `"vercel" | "render"` enum — add an `"other"` value (or similar) for frontend projects
+          hosted somewhere else, so the form/backend know when to skip the Vercel deploy-status
+          call entirely and use this check instead.
+        - **Use this as the signal only when there's no Vercel data available** (platform isn't
+          `"vercel"`, or no `vercel_project_id` set) — do **not** combine it with Vercel's
+          `readyState` for Vercel-hosted projects. Reasoning: combining both adds real
+          reconciliation complexity (what wins if Vercel says `READY` but the URL ping times out
+          right after a deploy, e.g. DNS/CDN propagation lag?) and doubles the network calls, for
+          a case that already works correctly today. Fallback-only keeps this scoped to the actual
+          gap (non-Vercel hosting) without touching what isn't broken.
+      No frontend UI counterpart planned beyond the `platform` dropdown gaining the new option —
+      this is scoped as backend-only.
 
 ## 4. Cross-cutting
 - [x] Rate-limit / de-dupe dashboard polling against Sheets' 60 reads/min quota (plan §11) — lean on lsdb's built-in 2s cache, don't fight it — cron loop is sequential rather than `Promise.all`, no extra polling infra added

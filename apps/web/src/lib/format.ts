@@ -38,3 +38,29 @@ export function pingStatusToTone(status: "success" | "timeout" | "error"): "up" 
       return "down";
   }
 }
+
+/**
+ * Frontend (Vercel) projects never get `/health`-pinged like backend services do — `project.status`
+ * is never updated for them and stays at its schema default forever, so it can't drive a live/down
+ * dot. Vercel's own deployment `readyState` is the only real signal for a frontend site: `READY` is
+ * up, `ERROR`/`CANCELED` is down, `QUEUED`/`BUILDING`/`INITIALIZING` is in-progress (mapped to the
+ * closest existing tone, "sleeping"), and no deployment data at all (not yet fetched, or no
+ * `vercel_project_id` configured) is honestly "unknown" rather than a guess either way.
+ */
+export function deployReadyStateToTone(
+  readyState: "QUEUED" | "BUILDING" | "INITIALIZING" | "READY" | "ERROR" | "CANCELED" | undefined,
+): "up" | "down" | "sleeping" | "unknown" {
+  switch (readyState) {
+    case "READY":
+      return "up";
+    case "ERROR":
+    case "CANCELED":
+      return "down";
+    case "QUEUED":
+    case "BUILDING":
+    case "INITIALIZING":
+      return "sleeping";
+    default:
+      return "unknown";
+  }
+}

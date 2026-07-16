@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@pcc/ui";
 import { api, type CreateProjectInput, type UpdateProjectInput } from "@/lib/api-client";
 
@@ -78,5 +78,19 @@ export function useDeployStatus(id: string | undefined, enabled: boolean) {
     queryKey: ["deploy-status", id],
     queryFn: () => api.projects.deployStatus(id as string),
     enabled: enabled && Boolean(id),
+  });
+}
+
+/**
+ * Batch version of useDeployStatus, for aggregate counts (e.g. the Dashboard's "Frontend live"
+ * card) rather than one card's own display. Shares the same `["deploy-status", id]` query key as
+ * useDeployStatus, so visiting /frontend and the Dashboard don't double-fetch the same project.
+ */
+export function useDeployStatuses(projectIds: string[]) {
+  return useQueries({
+    queries: projectIds.map((id) => ({
+      queryKey: ["deploy-status", id],
+      queryFn: () => api.projects.deployStatus(id),
+    })),
   });
 }
