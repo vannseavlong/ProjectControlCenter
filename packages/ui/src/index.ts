@@ -75,3 +75,7 @@ export { UptimeHistory } from "./UptimeHistory";
 export type { UptimeHistoryProps, UptimeHistoryPoint } from "./UptimeHistory";
 export { Pagination } from "./Pagination";
 export type { PaginationProps } from "./Pagination";
+export { AreaTrendChart } from "./AreaTrendChart";
+export type { AreaTrendChartProps, AreaTrendPoint } from "./AreaTrendChart";
+export { DonutChart } from "./DonutChart";
+export type { DonutChartProps, DonutChartSlice } from "./DonutChart";
