@@ -6,7 +6,7 @@ import { Card, EmptyState, Skeleton, StatusDot } from "@pcc/ui";
 import { useDeployStatuses, useProjects } from "@/hooks/useProjects";
 import { useAgents } from "@/hooks/useAgents";
 import { usePingLogs } from "@/hooks/usePingLogs";
-import { formatRelativeTime, formatResponseTime } from "@/lib/format";
+import { formatRelativeTime, formatResponseTime, projectLiveTone } from "@/lib/format";
 import { pingStatusToTone } from "@/lib/status";
 
 function SummaryCard({
@@ -41,13 +41,15 @@ export default function DashboardPage() {
   const backendProjects = projects?.filter((p) => p.type === "backend") ?? [];
   const backendUp = backendProjects.filter((p) => p.status === "up").length;
 
-  // Frontend (Vercel) projects never get /health-pinged like backend services, so project.status
-  // is never updated for them — Vercel's own deployment readyState is the only real live signal
-  // (same fix as the /frontend page's status dot, see lib/format.ts's deployReadyStateToTone).
+  // Frontend projects never get /health-pinged like backend services, so project.status is never
+  // updated for them — Vercel's deployment readyState (or, for non-Vercel hosting, a bare-URL
+  // reachability ping) is the only real live signal, see lib/format.ts's projectLiveTone.
   const frontendProjects = projects?.filter((p) => p.type === "frontend") ?? [];
-  const frontendProjectsWithVercelId = frontendProjects.filter((p) => p.vercel_project_id);
-  const deployStatuses = useDeployStatuses(frontendProjectsWithVercelId.map((p) => p._id));
-  const frontendLive = deployStatuses.filter((q) => q.data?.readyState === "READY").length;
+  const frontendProjectsWithUrl = frontendProjects.filter((p) => p.url);
+  const deployStatuses = useDeployStatuses(frontendProjectsWithUrl.map((p) => p._id));
+  const frontendLive = deployStatuses.filter(
+    (q) => projectLiveTone(q.data?.deployment, q.data?.reachability) === "up",
+  ).length;
 
   const activeAgents = agents?.filter((a) => a.status === "active").length ?? 0;
 

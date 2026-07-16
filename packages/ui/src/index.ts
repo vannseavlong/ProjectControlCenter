@@ -73,3 +73,5 @@ export { Sparkline } from "./Sparkline";
 export type { SparklineProps } from "./Sparkline";
 export { UptimeHistory } from "./UptimeHistory";
 export type { UptimeHistoryProps, UptimeHistoryPoint } from "./UptimeHistory";
+export { Pagination } from "./Pagination";
+export type { PaginationProps } from "./Pagination";

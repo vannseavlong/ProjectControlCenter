@@ -1,6 +1,7 @@
 import type { Agent, AgentStatus, PingLog, Project, ProjectPlatform, ProjectType } from "@pcc/types";
 import type { PingResult, WakeResult } from "@/lib/render";
 import type { VercelDeploymentStatus } from "@/lib/vercel";
+import type { ReachabilityResult } from "@/lib/reachability";
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -28,6 +29,12 @@ export interface CreateProjectInput {
 
 /** Partial update — only fields present are applied; matches `PATCH /api/projects/[id]`'s "present in body" semantics exactly. */
 export type UpdateProjectInput = Partial<CreateProjectInput>;
+
+/** Wire shape returned by `GET /api/projects/:id/deploy-status` — `deployment`/`reachability` are mutually exclusive, see that route. */
+export interface DeployStatusResult {
+  deployment: VercelDeploymentStatus | null;
+  reachability: ReachabilityResult | null;
+}
 
 export interface CreateAgentInput {
   agent_name: string;
@@ -69,10 +76,14 @@ export const api = {
       ),
     health: (id: string) => fetchJson<{ project: Project; ping: PingResult }>(`/api/projects/${id}/health`),
     wake: (id: string) => fetchJson<{ project: Project; wake: WakeResult }>(`/api/projects/${id}/wake`, { method: "POST" }),
+    /**
+     * `reachability` is only populated as a fallback for non-Vercel-hosted projects (or a Vercel
+     * project missing its `vercel_project_id`) — see `GET /api/projects/:id/deploy-status`. Both
+     * fields returned as-is (not narrowed to just `deployment`) so callers can combine them via
+     * `projectLiveTone` in `lib/format.ts`.
+     */
     deployStatus: (id: string) =>
-      fetchJson<{ deployment: VercelDeploymentStatus | null }>(`/api/projects/${id}/deploy-status`).then(
-        (r) => r.deployment,
-      ),
+      fetchJson<DeployStatusResult>(`/api/projects/${id}/deploy-status`),
     update: (id: string, input: UpdateProjectInput) =>
       fetchJson<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
         (r) => r.project,

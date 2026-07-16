@@ -114,7 +114,7 @@ a control room, not a marketing page.
       color token exists, reused the closest semantic one) plus a `TriangleAlert` icon, reading "No
       health API" — strict `=== false` check so unset/legacy rows aren't flagged. Didn't add the
       badge to `/frontend` (ping/health concept doesn't apply there, per the task brief's own call).
-- [ ] Row actions as a dropdown menu, user-requested — replace the separate pencil-edit / trash-
+- [x] Row actions as a dropdown menu, user-requested — replace the separate pencil-edit / trash-
       delete icon buttons on each table row with a single dropdown trigger, same pattern already
       built and working on `/agents` (`apps/web/src/app/(app)/agents/page.tsx`): `MoreVertical`
       icon trigger, `DropdownMenu`/`DropdownMenuTrigger`/`DropdownMenuContent`/`DropdownMenuItem`
@@ -123,10 +123,27 @@ a control room, not a marketing page.
       `ConfirmDialog` (open it from the dropdown item's `onSelect`, same as `/agents` does for its
       destructive actions — see that file for the `e.preventDefault()` + nested-dialog trick it
       already uses to stop Radix from closing the dropdown before the confirm dialog opens).
-- [ ] Search bar + pagination, user-requested — a search input (filter by `project_name`/`url`)
+      — `ProjectActionsMenu` in `apps/web/src/app/(app)/backend/page.tsx`. Delete ports the
+      `/agents` pattern exactly. Edit needed one adaptation: `AddProjectDialog` isn't a generic
+      `trigger`-accepting wrapper like `ConfirmDialog` (it hardcodes its own pencil-icon button
+      and isn't ref-forwarding), and per this task's scope it couldn't be touched — so
+      `EditProjectMenuItem` renders `AddProjectDialog`'s real trigger button off-screen (`hidden`
+      span, Dialog content still portals to `<body>` regardless) and forwards the menu item's
+      click to it via `querySelector`, using the same `onSelect` `preventDefault()` trick to keep
+      the dropdown mounted. See the doc comment above that function for the full reasoning.
+- [x] Search bar + pagination, user-requested — a search input (filter by `project_name`/`url`)
       plus page/limit controls above the table, so it stays usable as the roster grows. See
       `Tasks/app-backend.md` §1 for the client-vs-server-side call already made on this — short
       version: do it client-side over the already-fetched list, no new API route/params needed.
+      — fully client-side over the already-fetched `useProjects()` list, no new API calls/params.
+      10 rows/page (`PAGE_SIZE` constant), search resets to page 1, a stale page number (e.g.
+      after narrowing the result set) is clamped via a derived `currentPage = Math.min(page,
+      totalPages)` computed on render rather than corrected via a `setState`-in-effect (that
+      pattern is already on record as rejected by this repo's lint rule, see the `20:51` log
+      entry). Distinct empty states: "No backend services yet" (full `EmptyState` + CTA, roster
+      truly empty) vs. a plain "No services match search" line (roster has rows, search just
+      filtered them all out). Left the Uptime History section below the table unfiltered/
+      unpaginated — out of scope, the task only asked for the table.
 
 ## 3. Frontend Sites (`/frontend`)
 - [x] Card grid: thumbnail, live/down badge, "Open site" link, last-deployed time
@@ -143,17 +160,36 @@ a control room, not a marketing page.
       re-triggers the backend fetch via `PATCH`).
 - [x] Delete project — same as the Backend Services item above, for frontend-type projects.
       Trash-icon `ConfirmDialog` trigger next to Edit on each `/frontend` card.
-- [ ] Row actions as a dropdown menu, user-requested — same as the Backend Services item above,
+- [x] Row actions as a dropdown menu, user-requested — same as the Backend Services item above,
       applied to each `SiteCard`'s Edit/Delete buttons (`MoreVertical` trigger, `DropdownMenu*`
-      from `@pcc/ui`, same `/agents`-page pattern).
-- [ ] Search bar + pagination, user-requested — same as Backend Services, for the frontend site
-      list (client-side, see `Tasks/app-backend.md` §1).
-- [ ] Grid/List view toggle, user-requested — a toggle to switch `/frontend` between the current
+      from `@pcc/ui`, same `/agents`-page pattern). New shared `SiteActionsMenu` in
+      `apps/web/src/app/(app)/frontend/page.tsx`, reused by both the grid card and the new list
+      row (see next item). Delete: `ConfirmDialog` via the item's `onSelect` `preventDefault()`
+      trick, same as `/agents`. Edit couldn't reuse that exact trick — `AddProjectDialog` (out of
+      scope this session, backend lane owns it) hardcodes its own pencil trigger with no
+      custom-trigger prop like `ConfirmDialog` has — so the visible "Edit" item forwards its click
+      to a real `AddProjectDialog` trigger rendered in a `hidden` wrapper via a ref + `.click()`
+      instead of duplicating the edit form. See the doc comment on `SiteActionsMenu` for the full
+      reasoning.
+- [x] Search bar + pagination, user-requested — same as Backend Services, for the frontend site
+      list (client-side, see `Tasks/app-backend.md` §1) — filters the already-fetched
+      `useProjects()` list by `project_name`/`url`, 12 cards/rows per page (`PAGE_SIZE`), search
+      resets to page 1, stale page numbers clamped via a derived `currentPage = Math.min(page,
+      totalPages)` on render (not a `setState`-in-effect resync, same rejected pattern noted in
+      the `20:51` log entry). Distinct "No frontend sites yet" vs. "No matches" empty states.
+      Pagination controls only render once there's more than one page.
+- [x] Grid/List view toggle, user-requested — a toggle to switch `/frontend` between the current
       card-grid layout and a compact table/list layout (mirroring `/backend`'s `Table`: name,
       status, last-deployed, actions — thumbnails just wouldn't show in list mode, that's fine).
       Persist the chosen view (localStorage is enough, no need for a backend setting) so it's
       remembered across visits. No design spec beyond "match the existing list-table styling
       already used on `/backend`" — reuse rather than inventing a third table style.
+      — new `SiteListRow` reuses `@pcc/ui`'s `Table` exactly like `/backend`. Persistence via
+      `useSyncExternalStore` over `localStorage` (key `pcc:frontend-view-mode`), not
+      `useState`+`useEffect` — reading storage in an effect and calling `setState` synchronously
+      trips this repo's `react-hooks/set-state-in-effect` lint rule; `useSyncExternalStore`'s
+      `getServerSnapshot` returns `"grid"` during SSR/hydration (matching the server-rendered
+      HTML, no mismatch) without a manual effect.
 
 ## 4. Agent Staff (`/agents`)
 - [x] Roster grid: avatar/name/project/status

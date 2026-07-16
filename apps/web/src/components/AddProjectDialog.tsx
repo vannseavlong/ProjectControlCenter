@@ -14,9 +14,14 @@ import {
   DialogTrigger,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from "@pcc/ui";
-import type { Project } from "@pcc/types";
+import type { Project, ProjectPlatform } from "@pcc/types";
 import { useCreateProject, useUpdateProject } from "@/hooks/useProjects";
 
 interface AddProjectDialogProps {
@@ -65,6 +70,12 @@ function ProjectForm({
   const isEditing = Boolean(editingProject);
   const [projectName, setProjectName] = useState(editingProject?.project_name ?? "");
   const [url, setUrl] = useState(editingProject?.url ?? "");
+  // Frontend sites can be hosted somewhere other than Vercel (Firebase Hosting, Netlify, GitHub
+  // Pages, a custom server) — "other" has no readyState API, so its live/down signal falls back
+  // to a bare-URL reachability ping instead (Tasks/app-backend.md §3). Backend services stay
+  // pinned to Render — there's no non-Render backend hosting concept in this app, so no dropdown
+  // for them.
+  const [platform, setPlatform] = useState<ProjectPlatform>(editingProject?.platform ?? config.platform);
   const [platformId, setPlatformId] = useState(editingProject?.[config.idField] ?? "");
   const [repoUrl, setRepoUrl] = useState(editingProject?.repo_url ?? "");
   const [notes, setNotes] = useState(editingProject?.notes ?? "");
@@ -80,6 +91,9 @@ function ProjectForm({
         id: editingProject._id,
         input: {
           project_name: projectName,
+          // Backend services stay pinned to "render" (no dropdown rendered for them), so this
+          // only ever changes for frontend sites.
+          ...(type === "frontend" ? { platform } : {}),
           url: url || undefined,
           repo_url: repoUrl || undefined,
           notes: notes || undefined,
@@ -91,7 +105,7 @@ function ProjectForm({
       await createProject.mutateAsync({
         project_name: projectName,
         type,
-        platform: config.platform,
+        platform: type === "frontend" ? platform : config.platform,
         url: url || undefined,
         repo_url: repoUrl || undefined,
         notes: notes || undefined,
@@ -118,6 +132,20 @@ function ProjectForm({
           <Label htmlFor="url">URL</Label>
           <Input id="url" type="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
         </div>
+        {type === "frontend" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="platform">Platform</Label>
+            <Select value={platform} onValueChange={(value) => setPlatform(value as ProjectPlatform)}>
+              <SelectTrigger id="platform" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="vercel">Vercel</SelectItem>
+                <SelectItem value="other">Other (Firebase, Netlify, GitHub Pages, custom…)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="platform_id">{config.idLabel}</Label>
           <Input id="platform_id" placeholder={config.idPlaceholder} value={platformId} onChange={(e) => setPlatformId(e.target.value)} />

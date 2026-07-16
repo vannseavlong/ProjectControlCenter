@@ -13,7 +13,7 @@ import { pingHealth } from "@/lib/render";
 const CREATE_PROBE_TIMEOUT_MS = 5_000;
 
 const PROJECT_TYPES: ProjectType[] = ["frontend", "backend"];
-const PROJECT_PLATFORMS: ProjectPlatform[] = ["vercel", "render"];
+const PROJECT_PLATFORMS: ProjectPlatform[] = ["vercel", "render", "other"];
 
 export async function GET() {
   return withApiErrorHandling(async () => {

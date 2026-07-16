@@ -1,7 +1,7 @@
 import type { WithTimestamps } from "./common";
 
 export type ProjectType = "frontend" | "backend";
-export type ProjectPlatform = "vercel" | "render";
+export type ProjectPlatform = "vercel" | "render" | "other";
 export type ProjectStatus = "up" | "down" | "sleeping" | "unknown";
 
 export interface Project extends WithTimestamps {

@@ -8,7 +8,7 @@ import { pingHealth } from "@/lib/render";
 const UPDATE_PROBE_TIMEOUT_MS = 5_000;
 
 const PROJECT_TYPES: ProjectType[] = ["frontend", "backend"];
-const PROJECT_PLATFORMS: ProjectPlatform[] = ["vercel", "render"];
+const PROJECT_PLATFORMS: ProjectPlatform[] = ["vercel", "render", "other"];
 
 const STRING_FIELDS = ["repo_url", "render_service_id", "vercel_project_id", "url", "notes"] as const;
 

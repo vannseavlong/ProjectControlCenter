@@ -80,7 +80,7 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
       informational, the ping logic (`src/lib/render.ts`'s `pingHealth`, already has its own
       `/health`-then-bare-`url` fallback) is untouched. See `Tasks/app-frontend.md` for the
       matching form field + display badge.
-- [ ] Generic URL-reachability check for non-Vercel frontend hosting, user-requested (e.g. Firebase
+- [x] Generic URL-reachability check for non-Vercel frontend hosting, user-requested (e.g. Firebase
       Hosting, Netlify, GitHub Pages, a custom server) — Vercel's `readyState` only exists for
       Vercel-hosted projects, so a frontend site hosted elsewhere currently has no live/down signal
       at all. **Design decided, not yet built:**

@@ -22,8 +22,8 @@ guessing or silently blocking.
 
 | Agent | Current focus | Updated |
 |---|---|---|
-| frontend | Done: `has_health_endpoint` checkbox + warning badge (`app-frontend.md` §2, was the only gap left). Nothing left on my list except `/api/agents/:id/message` (blocked on agent-bridge, not mine to unblock). | 2026-07-16 22:15 |
-| backend | Done: `has_health_endpoint` field shipped (`app-backend.md` §1, was the last unchecked box), see the newest log entry below. Nothing left on my list, not blocked on anything. | 2026-07-16 22:35 |
+| frontend | Two concurrent frontend sessions this round: one `/backend`-scoped (row-actions dropdown + search/pagination, `app-frontend.md` §2, see `23:20` entry below), one `/frontend`-scoped (this entry) — same three asks (dropdown menu, search/pagination, grid/list toggle) now shipped for `/frontend` too, `app-frontend.md` §3 fully checked. See newest log entry below for the `AddProjectDialog`-can't-be-touched workaround used for the Edit dropdown item. Nothing left on my `/frontend`-scoped list except `/api/agents/:id/message` (blocked on agent-bridge, not mine to unblock). | 2026-07-16 23:45 |
+| backend | Done: generic URL-reachability check for non-Vercel frontend hosting shipped (`app-backend.md` §3, was the last unchecked box on my list). See newest log entry below. Nothing left on my list, not blocked on anything. | 2026-07-16 23:10 |
 | agent-bridge | — | — |
 
 ## Open Requests
@@ -419,3 +419,221 @@ Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit
   sheet-db package directly" boundary) — additive only, shouldn't conflict with anything.
   `pnpm build`/`type-check`/`lint` all green across the workspace. All app-backend.md boxes
   checked except the settings-table one (see Open Requests above).
+- `2026-07-16 23:10` — backend: shipped the generic URL-reachability check for non-Vercel
+  frontend hosting, the last unchecked box on `app-backend.md` (§3). Design was already decided
+  in that task item, this just built it:
+  - **`apps/web/src/lib/reachability.ts`** (new file): `pingUrl(url, timeoutMs = 10_000)` —
+    AbortController-timeout pattern mirrors `pingHealth`'s `fetchOnce` in `src/lib/render.ts`,
+    but pings the bare URL directly with no `/health` assumption (static hosts generally don't
+    have one). Kept out of `render.ts` since that file is Render-specific by name/docs. Returns
+    `{ ok, statusCode, responseTimeMs, timedOut }` — same shape family as `PingResult` minus
+    `healthEndpointDetected`, which doesn't apply here.
+  - **`ProjectPlatform`** (`packages/types/src/project.ts`): added `"other"` alongside
+    `"vercel" | "render"`. Also added to the `PROJECT_PLATFORMS` validation arrays in both
+    `POST /api/projects` and `PATCH /api/projects/:id` (`apps/web/src/app/api/projects/route.ts`,
+    `.../[id]/route.ts`) so the API actually accepts it.
+  - **`GET /api/projects/:id/deploy-status`**: now branches on `platform === "vercel" &&
+    vercel_project_id` — that path is unchanged (`{ deployment, reachability: null }`). Everything
+    else (platform `"other"`, or a Vercel project missing its `vercel_project_id`) falls back to
+    `pingUrl(project.url)` and returns `{ deployment: null, reachability }`, 400s only if the
+    project has no `url` at all. Deliberately fallback-only per the task's own reasoning — never
+    reconciled with Vercel's `readyState` for projects that do have Vercel data, to avoid the
+    "what wins if Vercel says READY but the ping times out right after a deploy" problem and a
+    doubled network call for a case that already works.
+  - **`apps/web/src/lib/api-client.ts`**: `api.projects.deployStatus`'s response type now
+    includes `reachability: ReachabilityResult | null` for correctness, but its `.then((r) =>
+    r.deployment)` extraction is unchanged — `useDeployStatus`/`useDeployStatuses` still return
+    just the Vercel shape, so this doesn't touch frontend behavior. No hook consumes
+    `reachability` yet.
+  - **`apps/web/src/components/AddProjectDialog.tsx`**: turns out there was no existing platform
+    `<Select>` to extend — platform was hardcoded per project `type` (backend always `"render"`,
+    frontend always `"vercel"`) via the `CONFIG` object, no dropdown rendered at all. Added one,
+    scoped to `type === "frontend"` only (Vercel vs. "Other (Firebase, Netlify, GitHub Pages,
+    custom…)") since backend services have no non-Render hosting concept in this app. Wired into
+    both create and edit submits; edit only sends `platform` when `type === "frontend"` so backend
+    project edits are byte-for-byte unchanged from before. This is the one frontend-adjacent file
+    task app-backend.md §3 said to touch myself, since the enum value needs to be reachable from
+    the UI at all — nothing else in `app-frontend.md` references this.
+  - **Verified**: `pnpm --filter @pcc/types type-check`, `pnpm --filter @pcc/web type-check`,
+    `pnpm --filter @pcc/web lint` (0 errors, 1 pre-existing unrelated warning on
+    `frontend/page.tsx`'s `<img>` usage), and `pnpm --filter @pcc/web build` all green. Also ran
+    `pingUrl()` directly (throwaway `tsx` script via `apps/agent-bridge`'s `tsx` dep, deleted after)
+    against a live 200 (`example.com`), a live host returning 404 on an unknown path (correctly
+    `ok:false, statusCode:404, timedOut:false` — not conflated with an actual timeout), an
+    unreachable host, and a slow endpoint (`httpbin.org/delay/5`) against a 1s timeout — all
+    behaved as expected, including the short-timeout abort actually firing at ~1s.
+  - Did not touch `apps/web/src/app/(app)/backend/page.tsx` or `.../frontend/page.tsx` — both had
+    concurrent in-flight changes from the frontend agent when I started.
+- `2026-07-16 23:20` — frontend (`/backend`-scoped session): shipped the last two boxes under
+  `app-frontend.md` §2 — row-actions dropdown menu and search/pagination on `/backend`. Scoped to
+  `apps/web/src/app/(app)/backend/page.tsx` only, per this session's brief; did not touch
+  `AddProjectDialog.tsx`, `/frontend`, or any backend files (all three had concurrent in-flight
+  edits from other sessions, confirmed by re-reading this log immediately before starting).
+  1. **Row actions dropdown** — new `ProjectActionsMenu` component, ported the `/agents`
+     (`apps/web/src/app/(app)/agents/page.tsx`) pattern directly: `MoreVertical` trigger,
+     `DropdownMenu`/`DropdownMenuContent`/`DropdownMenuItem` from `@pcc/ui` (already exported,
+     nothing new added to `packages/ui`). Delete is a straight port — `ConfirmDialog` as the
+     `trigger` prop of a destructive `DropdownMenuItem` with `onSelect={(e) =>
+     e.preventDefault()}`, identical to `/agents`' Fire/Delete items.
+     Edit needed one adaptation I want to flag clearly: `AddProjectDialog` isn't a generic
+     `trigger`-accepting wrapper like `ConfirmDialog` — it hardcodes its own `<Dialog>` +
+     pencil-icon `<Button>` trigger internally and doesn't forward refs/extra props, so it can't
+     be composed via `DropdownMenuItem`'s `asChild` (confirmed this would fail type-check: excess
+     props from `Slot`'s `cloneElement` don't match `AddProjectDialogProps`). Since editing
+     `AddProjectDialog.tsx` was explicitly out of scope for this session, I built
+     `EditProjectMenuItem`: a real `DropdownMenuItem` (`onSelect` `preventDefault()`, same trick)
+     whose click is forwarded via `ref` + `querySelector("button")?.click()` to `AddProjectDialog`'s
+     own real trigger button, rendered off-screen (`className="hidden"`) inside the item — Radix
+     `Dialog`'s content still portals to `<body>` regardless of an ancestor's `display: none`, so
+     the edit form renders correctly once opened. A bit more indirect than the Delete port, but it
+     gets the exact same "Edit"/icon+text row in the menu without touching a file another agent
+     owns. Full reasoning is in a doc comment directly above `EditProjectMenuItem` in the page file.
+  2. **Search + pagination** — fully client-side over the already-`useProjects()`-fetched list, no
+     new API calls/params (per `app-backend.md` §1's client-vs-server call). `Input` with a
+     `Search` icon filters on `project_name`/`url` (case-insensitive substring); typing resets to
+     page 1. `PAGE_SIZE = 10`. Deliberately avoided a `setState`-in-effect resync to clamp a stale
+     page number after the result set narrows (that pattern is already on record as rejected by
+     this repo's `react-hooks/set-state-in-effect` lint rule, per the `20:51` log entry above) —
+     instead `currentPage = Math.min(page, totalPages)` is derived fresh every render, no effect
+     needed. Two distinct empty states: the existing full `EmptyState`+CTA only when the roster is
+     genuinely empty, vs. a plain "No services match search" line when rows exist but the filter
+     zeroed them out. Left the Uptime History section below the table untouched (still shows all
+     services, unfiltered/unpaginated) — the task explicitly scoped this to "above the table", so
+     kept the change minimal rather than guessing scope expansion.
+  - **Verified**: `pnpm --filter @pcc/web type-check` clean. `pnpm --filter @pcc/web lint` clean
+    for my file specifically (ran `eslint` scoped to just `backend/page.tsx`, zero output); the
+    one full-workspace lint error I saw mid-session (`set-state-in-effect` in `frontend/page.tsx`)
+    was in the other frontend agent's in-flight file, not mine, and was gone on a re-run minutes
+    later (they fixed it independently) — full-workspace `pnpm --filter @pcc/web lint` is now 0
+    errors, 1 pre-existing expected `<img>` warning. `pnpm --filter @pcc/web build` green,
+    `/backend` route compiles. Did **not** smoke-test the actual dropdown/search/pagination
+    click-through against a live authenticated session — confirmed the dev server is up and
+    `/backend` correctly 307-redirects to `/login` (auth gate still working), same no-session-
+    cookie limitation every prior frontend session in this log has noted. Verification here is:
+    full read of the actual `/agents` pattern being ported, a clean type-check/lint/build, and
+    reasoning through the Radix event-ordering mechanics by hand — not an exercised click-through.
+  - `Tasks/app-frontend.md` §2 fully checked now.
+- `2026-07-16 23:45` — frontend (`/frontend`-scoped session): shipped the last three boxes under
+  `app-frontend.md` §3 on `apps/web/src/app/(app)/frontend/page.tsx` — row-actions dropdown,
+  search/pagination, grid/list toggle. Scoped strictly to that one file (+ no new `packages/ui`
+  exports needed); did not touch `AddProjectDialog.tsx`, `/backend`, or `packages/types`, all
+  confirmed as other sessions' territory by re-reading this log immediately before starting.
+  Independently converged on the same `AddProjectDialog`-can't-be-touched workaround the
+  `/backend`-scoped session above landed for the identical problem (read their `23:20` entry after
+  finishing mine — good sign both sessions reasoned to the same fix): `AddProjectDialog` hardcodes
+  its own pencil-icon trigger with no `trigger`-prop escape hatch like `ConfirmDialog` has, so a
+  new shared `SiteActionsMenu` (used by both the grid card and the new list row) forwards the
+  "Edit" `DropdownMenuItem`'s click (`onSelect` `preventDefault()`, same trick as Delete/`/agents`)
+  via `ref` + `querySelector("button")?.click()` to a real `AddProjectDialog` trigger rendered in a
+  `hidden` wrapper — Radix `Dialog` content still portals to `<body>` regardless of an ancestor's
+  `display:none`, so it opens correctly.
+  - **Search + pagination**: fully client-side over the already-`useProjects()`-fetched list (per
+    `app-backend.md` §1), filters `project_name`/`url`, `PAGE_SIZE = 12` (grid reads better in a
+    multiple of 3/4 than the `/backend` table's 10). Typing resets to page 1; a stale page number
+    after the result set narrows is clamped via `currentPage = Math.min(page, totalPages)` derived
+    on render, not a `setState`-in-effect resync — same rejected pattern the `20:51` and `23:20`
+    entries already flag for this repo's `react-hooks/set-state-in-effect` lint rule. Two empty
+    states: full `EmptyState`+CTA only when the roster is genuinely empty, a plain "No matches"
+    line when the search filtered everything out.
+  - **Grid/list toggle**: new `SiteListRow` reuses `@pcc/ui`'s `Table` (`TableHeader`/`TableRow`/
+    `TableHead`/`TableCell`) exactly like `/backend`'s table — Site/Status/Last deployed/Actions
+    columns, no thumbnail column, per the task brief. Persistence via `useSyncExternalStore` over
+    `localStorage` (key `pcc:frontend-view-mode`) rather than `useState` + a `useEffect` read —
+    initially wrote it the effect way and `pnpm --filter @pcc/web lint` caught the exact same
+    `react-hooks/set-state-in-effect` error the `23:20` entry mentions hit their own file mid-
+    session; fixed here (not just avoided) by switching to `useSyncExternalStore`, whose
+    `getServerSnapshot` returns `"grid"` during SSR/hydration (matching the server-rendered HTML,
+    no mismatch) and needs no manual effect at all — one less moving part than a guarded-effect
+    resync would've been.
+  - **Verified**: `pnpm --filter @pcc/web type-check` and `pnpm --filter @pcc/web lint` both clean
+    (0 errors; the one pre-existing `<img>`-element warning already on record). One transient
+    type-check failure hit mid-session (`Cannot find name 'DeleteProjectButton'` in
+    `backend/page.tsx`) — not my file, the other frontend session's in-flight edit; gone on a
+    re-run a few seconds later, flagging only for the record per this log's convention.
+    `pnpm --filter @pcc/web build` green, all 18 routes compiled including `/frontend`. Started
+    the dev server and confirmed `/frontend` correctly 307-redirects to `/login` (auth gate intact)
+    with zero errors/warnings in the dev server log — did **not** exercise the actual search/
+    pagination/dropdown/grid-list-toggle click-through against a live authenticated session, same
+    no-session-cookie sandbox limitation every prior session in this log has noted. Verification
+    here is: full read of the `/agents` pattern and the `/backend`-scoped session's independent
+    solution to the same Edit-in-dropdown problem, a clean type-check/lint/build, and reasoning
+    through the Radix/`useSyncExternalStore` mechanics by hand — not an exercised click-through.
+  - `Tasks/app-frontend.md` §3 fully checked now — nothing left anywhere in the file except
+    `/api/agents/:id/message` (blocked on agent-bridge, called out in the Voice Console section).
+- `2026-07-16 23:55` — frontend (main session, not a sub-task item — direct user follow-up on
+  `/frontend`): added a **Platform column + filter** to `/frontend` and fixed a **real bug** found
+  while doing it, plus the reported "pagination missing" issue.
+  - **Bug found**: `useDeployStatus(project._id, Boolean(project.vercel_project_id))` gated the
+    deploy-status fetch on `vercel_project_id` alone — so platform `"other"` sites (added by
+    backend's `23:10` reachability work above) never called `GET
+    /api/projects/:id/deploy-status` at all, meaning `pingUrl()` fallback was fully built
+    server-side but completely unreachable from the UI; their status dot was permanently
+    "unknown". Fixed by gating on `Boolean(project.url)` instead (matches what the route itself
+    requires — it 400s only when `url` is empty) in both `SiteCard` and `SiteListRow`, and in the
+    Dashboard's `useDeployStatuses` call (`apps/web/src/app/(app)/page.tsx`, `frontendProjectsWithUrl`
+    replacing `frontendProjectsWithVercelId`).
+  - `apps/web/src/lib/api-client.ts`: `deployStatus()` now returns the full `{ deployment,
+    reachability }` body (new `DeployStatusResult` type) instead of narrowing to just
+    `.deployment` — the narrowing was silently dropping the reachability data the backend session
+    had already wired up.
+  - `apps/web/src/lib/format.ts`: added `projectLiveTone(deployment, reachability)` — picks
+    `deployment`'s readyState tone when present, else maps `reachability.ok`/`timedOut` to
+    up/down/sleeping, else "unknown" (deployment/reachability are mutually exclusive per the
+    route). Added `platformLabel(platform)` for the new Platform badges/filter. Both used by
+    `/frontend` and the Dashboard's frontend-live count.
+  - **Platform column/filter** (`apps/web/src/app/(app)/frontend/page.tsx`): outline `Badge`
+    showing `platformLabel(project.platform)` on both the grid card and the new list-view's
+    `Platform` table column; a `Select` in the toolbar (only rendered when the roster actually has
+    more than one distinct platform, avoids a pointless single-option dropdown) filters by
+    platform, composed with the existing search filter and resetting to page 1 on change, same
+    pattern as the search box.
+  - **Pagination "missing" fix**: the pagination controls were gated on `filteredSites.length >
+    PAGE_SIZE` (12) — with 12 or fewer sites (true for this project's actual roster) the controls
+    never rendered at all, which is what read as "missing" even though the underlying
+    slice/page-state logic was correct. Changed the gate to `filteredSites.length > 0`, matching
+    `/backend`'s already-shipped pattern (always show once there's at least one result, Prev/Next
+    disabled at the boundaries) — consistent behavior across both tabs now.
+  - `pnpm --filter @pcc/web type-check`, `lint` (0 errors, same 1 pre-existing `<img>` warning),
+    `build` all green. Dev server started and `GET /frontend` confirmed a clean 307 to `/login`
+    (auth gate intact, no 500) — did not exercise the filter/pagination click-through against an
+    authenticated session, same sandbox limitation noted throughout this log.
+- `2026-07-17 00:10` — frontend (main session, user-supplied reference screenshots): user wanted a
+  specific pagination look — numbered page pills + ellipsis collapsing, "‹ Previous"/"Next ›" with
+  chevrons, right-aligned under a `border-t` separator — replacing the ad-hoc prev/next-only
+  controls each page had built independently. Extracted it as a shared primitive rather than
+  restyling both pages separately, since `/backend` and `/frontend` had already converged on
+  slightly different pagination UIs (icon-only chevrons + "Page X of Y" text vs. text-label
+  Previous/Next) and a third list view is plausible later (`/agents`).
+  - New `packages/ui/src/Pagination.tsx`: `{ page, totalPages, onPageChange }` props, no
+    `@pcc/types` import (same leaf-package rule as the rest of `packages/ui`). Returns `null` when
+    `totalPages <= 1`. `getPageWindow()` always shows page 1, the last page, and current±1,
+    collapsing gaps into a single "…" marker once `totalPages > 7` — matches the reference
+    screenshots' ellipsis behavior while still rendering every page number for small counts.
+    Exported from `packages/ui/src/index.ts`.
+  - Wired into both `apps/web/src/app/(app)/backend/page.tsx` and `.../frontend/page.tsx`,
+    replacing each page's own prev/next controls. Both pages' toolbars now just show the search
+    box + a plain result count (`/backend` dropped its inline "Page X of Y" text, `/frontend`
+    dropped its old text-label Previous/Next buttons) — the `Pagination` component owns all
+    page-number display and navigation now, rendered once below each table/grid.
+  - `pnpm --filter @pcc/ui type-check`/`lint`, `pnpm --filter @pcc/web type-check`/`lint` (0
+    errors, same 1 pre-existing `<img>` warning), `pnpm --filter @pcc/web build` all green.
+- `2026-07-17 00:25` — backend-lane bug, found and fixed in the main session: user couldn't
+  actually save a project with `platform: "other"` — Sheets rejected it with `Column platform
+  must be one of: vercel, render`. Root cause: the `23:10` reachability entry above added
+  `"other"` to `ProjectPlatform` (`packages/types/src/project.ts`) and to the route validation
+  arrays, but never updated the actual lsdb column definition —
+  `packages/db/schemas/admin/projects.ts` still had `platform: string().enum(["vercel",
+  "render"]).required()`, which is what actually drives the Sheet's dropdown-cell validation.
+  Type-checking passed everywhere because the TS type and the runtime schema are two separate
+  declarations with no compiler link between them — same class of trap as the
+  `registerSchemas([...])` one flagged in the `2026-07-16 20:48` entry, worth remembering:
+  changing `packages/types` alone is never sufficient for an enum column, the `packages/db`
+  schema has to change too.
+  - Fix: `platform: string().enum(["vercel", "render", "other"]).required()`. Ran `pnpm
+    --filter @pcc/db db:sync` (5 tables synced, no failures) to push the corrected dropdown
+    validation to the live Sheet.
+  - Live-verified with a throwaway `tsx` script (via `apps/agent-bridge`'s local `tsx` binary,
+    the workspace root doesn't have one on PATH — `./apps/agent-bridge/node_modules/.bin/tsx
+    --env-file=apps/web/.env`): created a real project with `platform: "other"`, confirmed it
+    round-tripped, deleted it, script itself deleted after — nothing left behind.
+  - `pnpm --filter @pcc/db type-check`, `pnpm --filter @pcc/web build` both green.

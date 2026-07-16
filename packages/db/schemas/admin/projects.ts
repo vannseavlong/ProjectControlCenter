@@ -7,7 +7,7 @@ export default defineTable({
   columns: {
     project_name: string().required().unique(),
     type: string().enum(["frontend", "backend"]).required(),
-    platform: string().enum(["vercel", "render"]).required(),
+    platform: string().enum(["vercel", "render", "other"]).required(),
     repo_url: string(),
     render_service_id: string(),
     vercel_project_id: string(),

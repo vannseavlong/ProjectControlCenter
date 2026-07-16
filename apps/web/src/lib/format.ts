@@ -1,3 +1,5 @@
+import type { ProjectPlatform } from "@pcc/types";
+
 export function formatRelativeTime(iso: string | undefined): string {
   if (!iso) return "never";
   const date = new Date(iso);
@@ -62,5 +64,36 @@ export function deployReadyStateToTone(
       return "sleeping";
     default:
       return "unknown";
+  }
+}
+
+/**
+ * Combines `GET /api/projects/:id/deploy-status`'s two mutually-exclusive fields into one tone —
+ * `deployment` (Vercel readyState) wins when present, `reachability` (bare-URL ping, `pingUrl` in
+ * `lib/reachability.ts`) is the fallback signal for platform `"other"` sites, matching the route's
+ * own fallback-only design (Tasks/app-backend.md §3). Neither present → "unknown", same honesty
+ * rule as `deployReadyStateToTone`. A reachability timeout maps to "sleeping" not "down", same
+ * reasoning as `pingStatusToTone`: a timeout doesn't necessarily mean the site is broken.
+ */
+export function projectLiveTone(
+  deployment: { readyState: "QUEUED" | "BUILDING" | "INITIALIZING" | "READY" | "ERROR" | "CANCELED" } | null | undefined,
+  reachability: { ok: boolean; timedOut: boolean } | null | undefined,
+): "up" | "down" | "sleeping" | "unknown" {
+  if (deployment) return deployReadyStateToTone(deployment.readyState);
+  if (reachability) {
+    if (reachability.ok) return "up";
+    return reachability.timedOut ? "sleeping" : "down";
+  }
+  return "unknown";
+}
+
+export function platformLabel(platform: ProjectPlatform): string {
+  switch (platform) {
+    case "vercel":
+      return "Vercel";
+    case "render":
+      return "Render";
+    case "other":
+      return "Other";
   }
 }
