@@ -16,6 +16,7 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
 - [x] `GET /api/projects/:id/health` — ping Render `/health`, write a `ping_logs` row, update `projects.status`/`last_checked`
 - [x] `POST /api/projects/:id/wake` — trigger wake, poll until 200 or timeout, return final status
 - [x] `cron/health-check` route — loop all backend projects, ping each, write `ping_logs` (the endpoint your scheduler hits)
+- [x] `PATCH /api/projects/:id` — partial update of editable fields (not originally in this list; added once the frontend agent flagged it as blocking edit-project forms, see `Tasks/agent-chat.md`)
 
 ## 2. Agents API
 - [x] `GET /api/agents` — list from `agentsTable()`
@@ -30,4 +31,4 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
 ## 4. Cross-cutting
 - [x] Rate-limit / de-dupe dashboard polling against Sheets' 60 reads/min quota (plan §11) — lean on lsdb's built-in 2s cache, don't fight it — cron loop is sequential rather than `Promise.all`, no extra polling infra added
 - [x] Error shape convention: consistent `{ error: string }` JSON across all routes (already used by the 501 stubs — keep it) — `apiError`/`apiOk`/`withApiErrorHandling` in `src/lib/api-response.ts`, used everywhere
-- [ ] Settings tab read/write for tokens — decide storage (env vars only vs. a `settings` sheet table) before building `/api/settings` — decided on a `settings` sheet table (env vars can't be written at runtime from Vercel serverless); posted as an Open Request in `Tasks/agent-chat.md` since it needs a `packages/db` schema addition. `/api/settings` itself stays unbuilt until that lands.
+- [x] Settings tab read/write for tokens — `packages/db/schemas/admin/settings.ts` (key/value table, `secret` boolean) + `settingsTable()` helper + `apps/web/src/app/api/settings/route.ts` (`GET`/`POST`, generic key/value upsert, secrets masked on read). See `Tasks/agent-chat.md` log for details.

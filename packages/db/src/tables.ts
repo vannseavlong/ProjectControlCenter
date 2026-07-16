@@ -5,7 +5,7 @@ import type {
   UpdateOptions,
   UpsertOptions,
 } from "longcelot-sheet-db";
-import type { Agent, Command, PingLog, Project } from "@pcc/types";
+import type { Agent, Command, PingLog, Project, SettingRow } from "@pcc/types";
 import { getAdminContext } from "./adapter";
 
 /** Same shape as lsdb's TableOperations, but typed to a row shape instead of Record<string, unknown>. */
@@ -29,3 +29,4 @@ export const projectsTable = (): TypedTable<Project> => typedTable<Project>("pro
 export const agentsTable = (): TypedTable<Agent> => typedTable<Agent>("agents");
 export const pingLogsTable = (): TypedTable<PingLog> => typedTable<PingLog>("ping_logs");
 export const commandQueueTable = (): TypedTable<Command> => typedTable<Command>("command_queue");
+export const settingsTable = (): TypedTable<SettingRow> => typedTable<SettingRow>("settings");

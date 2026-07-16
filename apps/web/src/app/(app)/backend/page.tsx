@@ -2,7 +2,6 @@
 
 import { Server, Zap } from "lucide-react";
 import {
-  Badge,
   Button,
   Card,
   EmptyState,
@@ -15,12 +14,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  UptimeHistory,
 } from "@pcc/ui";
-import type { Project } from "@pcc/types";
+import type { PingLog, Project } from "@pcc/types";
 import { useProjects, useWakeProject } from "@/hooks/useProjects";
 import { usePingLogs } from "@/hooks/usePingLogs";
-import { formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime, pingStatusToTone } from "@/lib/format";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
+
+/** Ping logs for one project, chronological (oldest first) — feeds both the row sparkline and the history section below. */
+function projectPingLogsAscending(pingLogs: PingLog[] | undefined, projectId: string): PingLog[] {
+  return (pingLogs ?? [])
+    .filter((log) => log.project_id === projectId)
+    .slice()
+    .sort((a, b) => new Date(a._created_at).getTime() - new Date(b._created_at).getTime());
+}
 
 function WakeButton({ project }: { project: Project }) {
   const wakeProject = useWakeProject();
@@ -77,10 +85,8 @@ export default function BackendServicesPage() {
             </TableHeader>
             <TableBody>
               {services.map((project) => {
-                const responseTimes = (pingLogs ?? [])
-                  .filter((log) => log.project_id === project._id && log.response_time_ms !== undefined)
-                  .slice()
-                  .reverse()
+                const responseTimes = projectPingLogsAscending(pingLogs, project._id)
+                  .filter((log) => log.response_time_ms !== undefined)
                   .map((log) => log.response_time_ms as number);
 
                 return (
@@ -105,7 +111,10 @@ export default function BackendServicesPage() {
                       <Sparkline values={responseTimes} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <WakeButton project={project} />
+                      <div className="flex items-center justify-end gap-1">
+                        <AddProjectDialog type="backend" editingProject={project} />
+                        <WakeButton project={project} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -115,10 +124,32 @@ export default function BackendServicesPage() {
         )}
       </Card>
 
-      <Card className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="outline">Phase 2</Badge>
-        Uptime history charts land once historical ping data is worth graphing per-service.
-      </Card>
+      {services.length > 0 ? (
+        <Card className="space-y-5">
+          <h2 className="text-sm font-semibold text-foreground">Uptime history</h2>
+          <div className="space-y-5">
+            {services.map((project) => {
+              const history = projectPingLogsAscending(pingLogs, project._id).map((log) => ({
+                tone: pingStatusToTone(log.status),
+                responseTimeMs: log.response_time_ms,
+                timestamp: log._created_at,
+              }));
+
+              return (
+                <div key={project._id} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">{project.project_name}</span>
+                    <span className="text-muted-foreground">
+                      {history.length} ping{history.length === 1 ? "" : "s"} recorded
+                    </span>
+                  </div>
+                  <UptimeHistory points={history} />
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

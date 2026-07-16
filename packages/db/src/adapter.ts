@@ -3,6 +3,7 @@ import projectsSchema from "../schemas/admin/projects";
 import agentsSchema from "../schemas/admin/agents";
 import pingLogsSchema from "../schemas/admin/ping_logs";
 import commandQueueSchema from "../schemas/admin/command_queue";
+import settingsSchema from "../schemas/admin/settings";
 
 let adapter: SheetAdapter | undefined;
 
@@ -29,7 +30,7 @@ function buildAdapter(): SheetAdapter {
     tokens: { refresh_token: requireEnv("ADMIN_OAUTH_REFRESH_TOKEN") },
   });
 
-  instance.registerSchemas([projectsSchema, agentsSchema, pingLogsSchema, commandQueueSchema]);
+  instance.registerSchemas([projectsSchema, agentsSchema, pingLogsSchema, commandQueueSchema, settingsSchema]);
 
   return instance;
 }

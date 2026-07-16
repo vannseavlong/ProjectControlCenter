@@ -22,26 +22,113 @@ guessing or silently blocking.
 
 | Agent | Current focus | Updated |
 |---|---|---|
-| frontend | Done: design system, shell, auth gate, all pages 0-6. Blocked on nothing of my own; watching for `/api/settings` + project `PATCH` route | 2026-07-16 11:45 |
-| backend | Done: Foundations, Projects API, Agents API, cron. Blocked: `/api/settings` (needs `packages/db` schema, see Open Requests) | 2026-07-16 10:15 |
+| frontend | Done: all of app-frontend.md. Uptime history chart shipped; Settings page + project edit forms wired up now that backend's `/api/settings` + `PATCH /api/projects/:id` landed. Only remaining gap is `/api/agents/:id/message` (blocked on agent-bridge, not mine to unblock). | 2026-07-16 20:51 |
+| backend | Done: all of `app-backend.md` — `settings` table + `/api/settings`, `PATCH /api/projects/:id` shipped. Nothing blocking, nothing left on my list. | 2026-07-16 20:48 |
 | agent-bridge | — | — |
 
 ## Open Requests
 
 | From → To | Request | Status |
 |---|---|---|
-| backend → anyone touching `packages/db` | Settings tab (plan §6) needs read **and** write from the UI for Render/Vercel tokens etc. — env vars can't be written at runtime from a Vercel serverless function, so that only supports read. Proposing a `settings` key/value table (`schemas/admin/settings.ts`, columns: `key` (required, unique), `value`, `secret` boolean) alongside the existing four. Holding off on adding it myself since `packages/db` is shared — flag here if you're mid-edit on schemas, otherwise I'll add it in a later pass. `/api/settings` stays unbuilt (no route stub exists yet) until this lands. | Open |
 
 ## Resolved
 
 | From → To | Request | Resolution |
 |---|---|---|
-| _(none yet)_ | | |
+| backend → anyone touching `packages/db` | Settings tab (plan §6) needs read **and** write from the UI for Render/Vercel tokens etc. — env vars can't be written at runtime from a Vercel serverless function, so that only supports read. Proposing a `settings` key/value table (`schemas/admin/settings.ts`, columns: `key` (required, unique), `value`, `secret` boolean) alongside the existing four. Holding off on adding it myself since `packages/db` is shared — flag here if you're mid-edit on schemas, otherwise I'll add it in a later pass. `/api/settings` stays unbuilt (no route stub exists yet) until this lands. | Added `packages/db/schemas/admin/settings.ts` + `settingsTable()` + built `GET/POST /api/settings`, see `2026-07-16 20:48` log entry below for full details. |
 
 ## Log
 
 Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit the tables above.
 
+- `2026-07-16 20:51` — frontend: finished the two items left on `app-frontend.md`.
+  1. **Uptime history chart** (independent of backend) — new `UptimeHistory` component in
+     `packages/ui/src/UptimeHistory.tsx` (exported from `packages/ui/src/index.ts`): a row of
+     status ticks (one per ping, colored via `--status-up/down/sleeping`) plus a taller
+     response-time line chart underneath, same hand-rolled-SVG convention as `Sparkline` — no
+     charting library added. Takes primitive props (`{ tone, responseTimeMs?, timestamp }[]`,
+     `tone` reusing the existing `StatusDotTone` union) so it stays data-model-agnostic per the
+     package's no-`@pcc/types` rule. Wired into `apps/web/src/app/(app)/backend/page.tsx`,
+     replacing the placeholder Card, one section per backend project. Added
+     `pingStatusToTone()` in `apps/web/src/lib/format.ts` to map `PingLog.status`
+     (`success`/`timeout`/`error`) → tone (`up`/`sleeping`/`down`) — `timeout` maps to
+     `sleeping`, not `down`, since a Render free-tier timeout usually just means it's asleep.
+  2. **Settings page + project edit forms** — checked ground truth before starting (both
+     `apps/web/src/app/api/settings/route.ts` and `apps/web/src/app/api/projects/[id]/route.ts`
+     existed on disk by the time I got here, landed by backend's `20:48` entry above) and read
+     both route implementations directly rather than assume shapes.
+     - `api.settings.list()`/`api.settings.save()` added to `apps/web/src/lib/api-client.ts`
+       with a `SettingSummary` type that matches the actual masked GET/POST response (`{ key,
+       secret, configured? }` for secret rows, `{ key, secret, value }` for non-secret) —
+       deliberately not the raw `SettingRow` from `@pcc/types`, which is the unmasked table row.
+       New `apps/web/src/hooks/useSettings.ts` (`useSettings`/`useSaveSettings`, same React
+       Query pattern as `useProjects.ts`). `apps/web/src/app/(app)/settings/page.tsx` rewritten:
+       "not wired up" banner gone, Save enabled, each token field shows a "Configured"/"Not set"
+       badge from `configured`, blank fields are omitted from the save payload so they don't
+       clobber an existing value (route only touches keys present in the body). Used key names
+       `render_api_token`/`vercel_api_token`/`screenshot_service_key` (no fixed list existed
+       anywhere — route is intentionally generic — matched the ids already used in the old
+       placeholder form). Un-disabled the screenshot key field too since the plumbing exists now
+       (still labeled "Phase 2", nothing consumes it yet — low-risk, just storage).
+     - `api.projects.update()` + `useUpdateProject` added (same mutation/invalidation pattern as
+       `useCreateProject`). `AddProjectDialog` (`apps/web/src/components/AddProjectDialog.tsx`)
+       now takes an optional `editingProject?: Project` prop — pre-fills and PATCHes instead of
+       POSTing. Refactored so the form fields live in an inner `ProjectForm` component rendered
+       inside `DialogContent`, which Radix only mounts while `open` — that gives correct
+       field-reset-per-open behavior for free from `useState` initializers, no effect needed
+       (my first pass used a `setState`-in-`useEffect` resync and the `react-hooks/set-state-in-
+       effect` lint rule correctly rejected it). Edit trigger is a pencil icon button next to
+       "Wake up" on `/backend`'s table rows and next to "Open site" on `/frontend`'s cards.
+  - `pnpm --filter @pcc/ui type-check`, `pnpm --filter @pcc/web type-check`, `pnpm --filter
+    @pcc/web lint`, `pnpm --filter @pcc/web build` all green. Could **not** smoke-test the
+    authenticated flows against the live dev server this session — no session cookie/login
+    credentials available to me here (`/api/settings` correctly 401s, `/settings` and `/backend`
+    correctly 307-redirect to `/login`, confirming the auth gate still works, but I didn't
+    exercise Save/PATCH end-to-end through the UI). Verification is: full read of both route
+    handlers' actual code, matching types, and a clean production build. Flagging this explicitly
+    rather than claiming more than I checked.
+  - `Tasks/app-frontend.md` checkboxes updated to match — all boxes now checked except nothing;
+    the only remaining gap anywhere in the file is `/api/agents/:id/message`, called out in the
+    Voice Console section as blocked on agent-bridge.
+- `2026-07-16 20:48` — backend: closed out the last two `app-backend.md` items.
+  1. **Settings table + `/api/settings`** — added `packages/db/schemas/admin/settings.ts`
+     (key/value table: `key` string required+unique, `value` string, `secret` boolean
+     default `false`, `timestamps: true`), following the `projects.ts`/`ping_logs.ts`
+     `defineTable` pattern exactly. Added `SettingRow` to `packages/types/src/setting.ts`
+     (exported from `packages/types/src/index.ts`) and a `settingsTable()` helper in
+     `packages/db/src/tables.ts` (same `typedTable<T>()` pattern as the other four), exported
+     from `packages/db/src/index.ts`. **Important catch**: `packages/db/src/adapter.ts`'s
+     `buildAdapter()` calls `instance.registerSchemas([...])` with an explicit list — adding a
+     new schema file alone does nothing, you also have to import it and add it to that array,
+     or the table throws `SchemaError: Table settings is not registered` at runtime despite
+     type-checking clean (types are structural, registration is a separate runtime step). Fixed
+     that in the same change — flagging in case anyone else adds a table later and hits the same
+     trap. Ran `pnpm --filter @pcc/db db:sync` — created the `settings` tab on the live sheet
+     (5 tables now, all synced), no auth issues.
+     Built `apps/web/src/app/api/settings/route.ts`: `GET` returns all rows, but for `secret:
+     true` rows the response is `{ key, secret: true, configured: boolean }` with `value`
+     omitted entirely (never echoes a saved secret back) — non-secret rows return `{ key,
+     secret: false, value }`. `POST` upserts one or more `{ key, value?, secret? }` pairs (body
+     is either a single object or `{ settings: [...] }`) via `settingsTable().upsert({ where:
+     { key }, data })`, generic — no `render_api_token`/`vercel_api_token`/
+     `screenshot_service_key` hardcoding in the route itself, that's on the frontend/whoever
+     decides which keys to read/write.
+  2. **`PATCH /api/projects/:id`** — new `apps/web/src/app/api/projects/[id]/route.ts`.
+     404s if the project doesn't exist; only applies fields actually present in the request
+     body (checks `"field" in body`, not `!== undefined`) so unset fields are left alone, not
+     overwritten — validates `type`/`platform` against the same enum lists as `POST
+     /api/projects`, `project_name` non-empty, the rest as plain strings. Returns `{ project }`
+     re-fetched after the update, same shape as the other project routes.
+  - Verified both end-to-end against the live Sheet (not just type-check) with a throwaway
+    script exercising `settingsTable()`/`projectsTable()` directly — confirmed secret values
+    round-trip correctly, non-secret values too, and partial project updates only touch the
+    field that was set. Script was deleted after, nothing left behind.
+  - `pnpm --filter @pcc/db type-check`, `pnpm --filter @pcc/web type-check`, `pnpm --filter
+    @pcc/web lint`, `pnpm --filter @pcc/web build` all green across the workspace.
+  - All `app-backend.md` boxes now checked (added one for the `PATCH` route that wasn't in the
+    original list — it came up later as a frontend blocker, see the `12:15`/`10:30` entries
+    below). Moved the settings Open Request to Resolved. Nothing left on backend's list; not
+    blocked on anything.
 - `2026-07-16 12:15` — frontend: touched `packages/db/src/adapter.ts` — flagging since that's
   your file. User filled in real Google Cloud + Sheets credentials and asked me to get end-to-end
   data working locally. Hit two things blocking that:

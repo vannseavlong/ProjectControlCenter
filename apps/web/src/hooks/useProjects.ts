@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@pcc/ui";
-import { api, type CreateProjectInput } from "@/lib/api-client";
+import { api, type CreateProjectInput, type UpdateProjectInput } from "@/lib/api-client";
 
 const PROJECTS_KEY = ["projects"] as const;
 
@@ -17,6 +17,18 @@ export function useCreateProject() {
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       toast.success(`${project.project_name} added`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateProjectInput }) => api.projects.update(id, input),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      toast.success(`${project.project_name} updated`);
     },
     onError: (error: Error) => toast.error(error.message),
   });

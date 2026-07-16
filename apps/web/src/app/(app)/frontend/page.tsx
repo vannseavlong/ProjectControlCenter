@@ -24,16 +24,21 @@ function SiteCard({ project }: { project: Project }) {
           <span className="font-mono">{formatRelativeTime(deployment?.createdAt ?? project.last_checked)}</span>
           {deployment ? <Badge variant="outline">{deployment.readyState}</Badge> : null}
         </div>
-        {project.url ? (
-          <a
-            href={project.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            Open site <ExternalLink className="size-3" />
-          </a>
-        ) : null}
+        <div className="flex items-center justify-between gap-2">
+          {project.url ? (
+            <a
+              href={project.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Open site <ExternalLink className="size-3" />
+            </a>
+          ) : (
+            <span />
+          )}
+          <AddProjectDialog type="frontend" editingProject={project} />
+        </div>
       </div>
     </Card>
   );

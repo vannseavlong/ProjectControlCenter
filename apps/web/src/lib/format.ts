@@ -21,3 +21,20 @@ export function formatResponseTime(ms: number | undefined): string {
   if (ms === undefined) return "—";
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
+
+/**
+ * Maps a ping outcome (`PingLog.status`) to a `StatusDotTone` for components in `@pcc/ui`
+ * — that package deliberately doesn't import `@pcc/types`, so this translation lives here.
+ * `timeout` maps to `sleeping` (amber) rather than `down` (red): a timeout on a Render free-tier
+ * service usually means it's asleep and waking up, not actually failing.
+ */
+export function pingStatusToTone(status: "success" | "timeout" | "error"): "up" | "down" | "sleeping" {
+  switch (status) {
+    case "success":
+      return "up";
+    case "timeout":
+      return "sleeping";
+    case "error":
+      return "down";
+  }
+}

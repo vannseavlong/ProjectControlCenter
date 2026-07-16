@@ -25,11 +25,38 @@ export interface CreateProjectInput {
   notes?: string;
 }
 
+/** Partial update — only fields present are applied; matches `PATCH /api/projects/[id]`'s "present in body" semantics exactly. */
+export type UpdateProjectInput = Partial<CreateProjectInput>;
+
 export interface CreateAgentInput {
   agent_name: string;
   assigned_project_id: string;
   local_project_path: string;
   brief?: string;
+}
+
+export interface SaveSettingInput {
+  key: string;
+  value?: string;
+  secret?: boolean;
+}
+
+/**
+ * Wire shape returned by `GET/POST /api/settings` — deliberately not `SettingRow` from `@pcc/types`
+ * (that's the raw table row). The route masks secret rows to `{ secret: true, configured }` and
+ * never sends a saved secret's real value back to the client — see `maskSetting` in
+ * `apps/web/src/app/api/settings/route.ts`.
+ */
+export interface SettingSummary {
+  _id: string;
+  key: string;
+  secret: boolean;
+  /** Present (and the source of truth) only when `secret: true`. */
+  configured?: boolean;
+  /** Present only when `secret: false` — secret values are never echoed back. */
+  value?: string;
+  _created_at: string;
+  _updated_at: string;
 }
 
 export const api = {
@@ -44,6 +71,10 @@ export const api = {
     deployStatus: (id: string) =>
       fetchJson<{ deployment: VercelDeploymentStatus | null }>(`/api/projects/${id}/deploy-status`).then(
         (r) => r.deployment,
+      ),
+    update: (id: string, input: UpdateProjectInput) =>
+      fetchJson<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
+        (r) => r.project,
       ),
   },
   agents: {
@@ -61,5 +92,14 @@ export const api = {
   },
   pingLogs: {
     list: () => fetchJson<{ pingLogs: PingLog[] }>("/api/ping-logs").then((r) => r.pingLogs),
+  },
+  settings: {
+    list: () => fetchJson<{ settings: SettingSummary[] }>("/api/settings").then((r) => r.settings),
+    /** Upserts one or more key/value pairs in one call — mirrors the route's `{ settings: [...] }` batch body. */
+    save: (inputs: SaveSettingInput[]) =>
+      fetchJson<{ settings: SettingSummary[] }>("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ settings: inputs }),
+      }).then((r) => r.settings),
   },
 };

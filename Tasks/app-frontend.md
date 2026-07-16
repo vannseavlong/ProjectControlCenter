@@ -80,14 +80,18 @@ a control room, not a marketing page.
 - [x] "Wake up" button with spinner state while polling for 200
       — button reflects the mutation's pending state; the actual poll-for-200 loop is server-side
       in `wakeService` (`apps/web/src/lib/render.ts`, already built by backend).
-- [ ] Uptime history chart (per service, phase 2) — deferred, as scoped.
+- [x] Uptime history chart (per service, phase 2) — new `UptimeHistory` in `packages/ui`
+      (status-tick timeline + response-time line chart, hand-rolled SVG like `Sparkline`, no
+      charting library) wired in below the service table, one section per backend project.
 - [x] Add/edit project form (Render fields: `render_service_id`, `url`, etc.)
-      — **add** only. No `PATCH /api/projects/:id` exists yet, so edit isn't wired — flagged in
-      agent-chat.md, will build the moment that route lands.
+      — both add and edit now wired: `AddProjectDialog` takes an optional `editingProject` prop
+      (pre-fills, calls `PATCH /api/projects/:id` via `useUpdateProject`), triggered by a pencil
+      icon per row.
 
 ## 3. Frontend Sites (`/frontend`)
 - [x] Card grid: thumbnail, live/down badge, "Open site" link, last-deployed time
-- [x] Add/edit project form (Vercel fields: `vercel_project_id`, `url`) — same add-only caveat as above.
+- [x] Add/edit project form (Vercel fields: `vercel_project_id`, `url`) — edit now wired the same
+      way as Backend Services, pencil icon per card.
 - [x] Thumbnail placeholder state until phase 2 screenshot service lands
 
 ## 4. Agent Staff (`/agents`)
@@ -107,18 +111,23 @@ a control room, not a marketing page.
       shows an explicit "not wired up yet" banner rather than pretending it works.
 
 ## 6. Settings (`/settings`)
-- [x] Render API token field
-- [x] Vercel API token field
+- [x] Render API token field — wired to `/api/settings` (key `render_api_token`, `secret: true`).
+- [x] Vercel API token field — wired to `/api/settings` (key `vercel_api_token`, `secret: true`).
 - [x] Sheet-DB config display (admin sheet ID, connection status via `lsdb doctor`-style check)
-- [x] Screenshot service key field (phase 2)
-      — whole page is UI-only against local form state, Save disabled, with an explicit banner:
-      no `/api/settings` route or settings table exists yet (see backend's Open Request in
-      agent-chat.md). Nothing here persists until that lands.
+      — unchanged, still static (no health-check route exists for this, out of scope here).
+- [x] Screenshot service key field (phase 2) — un-disabled and wired to `/api/settings` (key
+      `screenshot_service_key`) since the plumbing now exists; still labeled "Phase 2" because
+      nothing consumes it yet.
+      — page now uses `useSettings`/`useSaveSettings` (`apps/web/src/hooks/useSettings.ts`), Save
+      enabled, "not wired up" banner removed. Each secret field shows a "Configured"/"Not set"
+      badge from the GET response's `configured` flag (never the real value — backend's route
+      masks secrets, see `maskSetting` in `apps/web/src/app/api/settings/route.ts`) and a blank
+      Save field leaves that key unchanged (only non-empty fields are sent in the batch upsert).
 
 ## Data wiring (cuts across all tabs)
 - [x] React Query (or SWR) setup for polling `/api/projects` and `/api/agents` on an interval (plan §11: 30–60s, not every render)
       — chose React Query, 45s default `refetchInterval` in `Providers.tsx`.
 - [x] Wire every stub API route above once `app-backend.md` tasks land
-      — projects (list/create/health/wake/deploy-status) and agents (list/create/patch/delete) are
-      real and wired. Still open: `/api/agents/:id/message` (501, agent-bridge) and `/api/settings`
-      (doesn't exist yet, needs a schema — see agent-chat.md).
+      — projects (list/create/update/health/wake/deploy-status), agents (list/create/patch/delete),
+      and settings (list/save) are all real and wired. Still open: `/api/agents/:id/message` (501,
+      blocked on agent-bridge — the only remaining stub).
