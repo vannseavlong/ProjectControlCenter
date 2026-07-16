@@ -30,20 +30,25 @@ export async function getRenderServiceStatus(serviceId: string): Promise<RenderS
   };
 }
 
-export interface PingResult {
+interface FetchResult {
   ok: boolean;
   statusCode: number | null;
   responseTimeMs: number;
   timedOut: boolean;
 }
 
-/**
- * Pings a deployed service's own `/health` route (not the Render management API). Free-tier
- * Render services cold-start on any inbound request, so this same call doubles as the wake
- * trigger — there's no separate "wake" endpoint on Render's API.
- */
-export async function pingHealth(baseUrl: string, timeoutMs = 10_000): Promise<PingResult> {
-  const url = new URL("/health", baseUrl).toString();
+export interface PingResult extends FetchResult {
+  /**
+   * Whether the dedicated `/health` route itself answered — distinct from `ok`, which also
+   * counts a successful bare-`baseUrl` fallback. `true` if `/health` returned 2xx, `false` if it
+   * completed with a real non-2xx response (e.g. a plain 404 — the route just doesn't exist),
+   * `null` if the `/health` request timed out (inconclusive: the service may simply be asleep,
+   * this says nothing about whether the route exists).
+   */
+  healthEndpointDetected: boolean | null;
+}
+
+async function fetchOnce(url: string, timeoutMs: number): Promise<FetchResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const start = Date.now();
@@ -56,6 +61,27 @@ export async function pingHealth(baseUrl: string, timeoutMs = 10_000): Promise<P
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Pings a deployed service's own `/health` route (not the Render management API). Free-tier
+ * Render services cold-start on any inbound request, so this same call doubles as the wake
+ * trigger — there's no separate "wake" endpoint on Render's API.
+ *
+ * Not every tracked service exposes `/health` — if that request completes but isn't 2xx (e.g. a
+ * plain 404, meaning the route just doesn't exist), fall back to the bare `baseUrl` before
+ * concluding the service is down, since a service can be genuinely up and serving traffic without
+ * a dedicated health route. Skip the fallback on a timeout, though: that already means the
+ * service is slow/asleep, and retrying the same cold service against a different path would just
+ * double the wait without telling us anything new.
+ */
+export async function pingHealth(baseUrl: string, timeoutMs = 10_000): Promise<PingResult> {
+  const primary = await fetchOnce(new URL("/health", baseUrl).toString(), timeoutMs);
+  const healthEndpointDetected = primary.timedOut ? null : primary.ok;
+  if (primary.ok || primary.timedOut) return { ...primary, healthEndpointDetected };
+
+  const fallback = await fetchOnce(baseUrl, timeoutMs);
+  return { ...(fallback.ok ? fallback : primary), healthEndpointDetected };
 }
 
 export interface WakeResult extends PingResult {
@@ -77,7 +103,7 @@ export async function wakeService(baseUrl: string, options: WakeOptions = {}): P
   const deadline = Date.now() + totalBudgetMs;
 
   let attempts = 0;
-  let last: PingResult = { ok: false, statusCode: null, responseTimeMs: 0, timedOut: false };
+  let last: PingResult = { ok: false, statusCode: null, responseTimeMs: 0, timedOut: false, healthEndpointDetected: null };
 
   while (Date.now() < deadline) {
     attempts += 1;

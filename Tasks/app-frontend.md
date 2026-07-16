@@ -87,12 +87,73 @@ a control room, not a marketing page.
       — both add and edit now wired: `AddProjectDialog` takes an optional `editingProject` prop
       (pre-fills, calls `PATCH /api/projects/:id` via `useUpdateProject`), triggered by a pencil
       icon per row.
+- [x] Delete project — remove a backend service from the roster entirely. `DELETE
+      /api/projects/:id` landed (backend, see `Tasks/agent-chat.md`); `useDeleteProject` added
+      to `apps/web/src/hooks/useProjects.ts` (mirrors `useDeleteAgent`), `api.projects.remove()`
+      in `apps/web/src/lib/api-client.ts`, trash-icon `ConfirmDialog` trigger next to Edit/Wake
+      up on each `/backend` table row. The 409 "agent still assigned" error message is surfaced
+      verbatim via the mutation's `onError` toast (same `error.message` pattern as every other
+      mutation in this file — `fetchJson` already throws the API's real `error` string).
+- [x] "Has `/health` endpoint" checkbox in `AddProjectDialog` (shared by both Backend Services and
+      Frontend Sites, so it shows up in both add/edit forms — see `Tasks/app-backend.md` §1 for the
+      new `has_health_endpoint` field it writes to), plus a warning badge next to the status dot on
+      `/backend`'s table rows when a project is explicitly marked `false` (not just unset/legacy —
+      don't flag rows that predate this field until the user has actually reviewed them). Purely
+      informational, doesn't change ping/wake behavior — helps the user spot at a glance which
+      tracked services still need a `/health` route built.
+      — checked ground truth first: `has_health_endpoint?: boolean` was already on `Project`
+      (`packages/types/src/project.ts`) and wired into both `POST /api/projects` and `PATCH
+      /api/projects/:id` by the time I started, so this is a fully verified round-trip, not built
+      against an assumed contract. No dedicated `Checkbox` primitive existed in `packages/ui` and
+      `@radix-ui/react-checkbox` isn't a dependency — added a minimal `Checkbox` (plain native
+      `<input type="checkbox">` styled to match `Input`'s border/focus-ring conventions, no new
+      dependency) in `packages/ui/src/Checkbox.tsx`, exported from `index.ts`. `AddProjectDialog`
+      defaults it to `true` for new projects, pre-fills from `editingProject?.has_health_endpoint`
+      when editing, sent in both the create and update payloads. Badge on `/backend` uses `Badge
+      variant="outline"` tinted with the existing `--status-sleeping` amber (no dedicated "warning"
+      color token exists, reused the closest semantic one) plus a `TriangleAlert` icon, reading "No
+      health API" — strict `=== false` check so unset/legacy rows aren't flagged. Didn't add the
+      badge to `/frontend` (ping/health concept doesn't apply there, per the task brief's own call).
+- [ ] Row actions as a dropdown menu, user-requested — replace the separate pencil-edit / trash-
+      delete icon buttons on each table row with a single dropdown trigger, same pattern already
+      built and working on `/agents` (`apps/web/src/app/(app)/agents/page.tsx`): `MoreVertical`
+      icon trigger, `DropdownMenu`/`DropdownMenuTrigger`/`DropdownMenuContent`/`DropdownMenuItem`
+      from `@pcc/ui` (already exported, nothing new to build in `packages/ui`). Edit and Delete
+      become `DropdownMenuItem`s inside one menu — Delete keeps going through the existing
+      `ConfirmDialog` (open it from the dropdown item's `onSelect`, same as `/agents` does for its
+      destructive actions — see that file for the `e.preventDefault()` + nested-dialog trick it
+      already uses to stop Radix from closing the dropdown before the confirm dialog opens).
+- [ ] Search bar + pagination, user-requested — a search input (filter by `project_name`/`url`)
+      plus page/limit controls above the table, so it stays usable as the roster grows. See
+      `Tasks/app-backend.md` §1 for the client-vs-server-side call already made on this — short
+      version: do it client-side over the already-fetched list, no new API route/params needed.
 
 ## 3. Frontend Sites (`/frontend`)
 - [x] Card grid: thumbnail, live/down badge, "Open site" link, last-deployed time
 - [x] Add/edit project form (Vercel fields: `vercel_project_id`, `url`) — edit now wired the same
       way as Backend Services, pencil icon per card.
-- [x] Thumbnail placeholder state until phase 2 screenshot service lands
+- [x] Real site thumbnails via Open Graph image, replacing the placeholder tile. `SiteCard`
+      (`apps/web/src/app/(app)/frontend/page.tsx`) now renders `project.thumbnail_url` as a plain
+      `<img loading="lazy">` (not `next/image` — arbitrary external domains, no fixed hostname
+      allowlist is viable) inside the existing `aspect-video` tile, falling back to the `ImageOff`
+      placeholder when the field is empty or the image fails to load (local `imageFailed` state
+      set via `onError`). Bottom banner reworded — no more "Phase 2 — screenshot service" wording,
+      now a short factual note that thumbnails come from each site's Open Graph image. No
+      backfill UI for pre-existing rows built (out of scope — editing a project naturally
+      re-triggers the backend fetch via `PATCH`).
+- [x] Delete project — same as the Backend Services item above, for frontend-type projects.
+      Trash-icon `ConfirmDialog` trigger next to Edit on each `/frontend` card.
+- [ ] Row actions as a dropdown menu, user-requested — same as the Backend Services item above,
+      applied to each `SiteCard`'s Edit/Delete buttons (`MoreVertical` trigger, `DropdownMenu*`
+      from `@pcc/ui`, same `/agents`-page pattern).
+- [ ] Search bar + pagination, user-requested — same as Backend Services, for the frontend site
+      list (client-side, see `Tasks/app-backend.md` §1).
+- [ ] Grid/List view toggle, user-requested — a toggle to switch `/frontend` between the current
+      card-grid layout and a compact table/list layout (mirroring `/backend`'s `Table`: name,
+      status, last-deployed, actions — thumbnails just wouldn't show in list mode, that's fine).
+      Persist the chosen view (localStorage is enough, no need for a backend setting) so it's
+      remembered across visits. No design spec beyond "match the existing list-table styling
+      already used on `/backend`" — reuse rather than inventing a third table style.
 
 ## 4. Agent Staff (`/agents`)
 - [x] Roster grid: avatar/name/project/status

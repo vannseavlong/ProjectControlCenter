@@ -19,6 +19,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const projectStatus: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
     const last_checked = new Date().toISOString();
 
+    // A conclusive result (the /health route either answered or gave a real non-2xx response)
+    // opportunistically keeps has_health_endpoint accurate without the user setting it by hand —
+    // see apps/web/src/lib/render.ts's PingResult.healthEndpointDetected. A timeout (null) leaves
+    // it untouched, same "don't guess" rule used everywhere else this field gets set.
+    const healthEndpointUpdate =
+      result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
+
     await pingLogsTable().create({
       project_id: project._id,
       status: pingStatus,
@@ -26,11 +33,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     });
     await projectsTable().update({
       where: { _id: project._id },
-      data: { status: projectStatus, last_checked },
+      data: { status: projectStatus, last_checked, ...healthEndpointUpdate },
     });
 
     return apiOk({
-      project: { ...project, status: projectStatus, last_checked },
+      project: { ...project, status: projectStatus, last_checked, ...healthEndpointUpdate },
       ping: result,
     });
   });

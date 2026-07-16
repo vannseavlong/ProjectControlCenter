@@ -23,6 +23,7 @@ export interface CreateProjectInput {
   vercel_project_id?: string;
   url?: string;
   notes?: string;
+  has_health_endpoint?: boolean;
 }
 
 /** Partial update — only fields present are applied; matches `PATCH /api/projects/[id]`'s "present in body" semantics exactly. */
@@ -76,6 +77,14 @@ export const api = {
       fetchJson<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
         (r) => r.project,
       ),
+    /**
+     * Hard delete — 404s if missing, 409s if a non-fired agent is still assigned (message names
+     * the blocking agents). Response shape has an extra `cascadedPingLogs` count beyond the plain
+     * `{ deleted: true, id }` `DELETE /api/agents/:id` returns, since this route also cascades
+     * `ping_logs` rows for the project — see `apps/web/src/app/api/projects/[id]/route.ts`.
+     */
+    remove: (id: string) =>
+      fetchJson<{ deleted: true; id: string; cascadedPingLogs: number }>(`/api/projects/${id}`, { method: "DELETE" }),
   },
   agents: {
     list: () => fetchJson<{ agents: Agent[] }>("/api/agents").then((r) => r.agents),

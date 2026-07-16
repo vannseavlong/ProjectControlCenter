@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Pencil, Plus } from "lucide-react";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -67,6 +68,7 @@ function ProjectForm({
   const [platformId, setPlatformId] = useState(editingProject?.[config.idField] ?? "");
   const [repoUrl, setRepoUrl] = useState(editingProject?.repo_url ?? "");
   const [notes, setNotes] = useState(editingProject?.notes ?? "");
+  const [hasHealthEndpoint, setHasHealthEndpoint] = useState(editingProject?.has_health_endpoint ?? true);
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const isPending = createProject.isPending || updateProject.isPending;
@@ -82,6 +84,7 @@ function ProjectForm({
           repo_url: repoUrl || undefined,
           notes: notes || undefined,
           [config.idField]: platformId || undefined,
+          has_health_endpoint: hasHealthEndpoint,
         },
       });
     } else {
@@ -93,6 +96,7 @@ function ProjectForm({
         repo_url: repoUrl || undefined,
         notes: notes || undefined,
         [config.idField]: platformId || undefined,
+        has_health_endpoint: hasHealthEndpoint,
       });
     }
     onDone();
@@ -126,6 +130,14 @@ function ProjectForm({
           <Label htmlFor="notes">Notes</Label>
           <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
+        <Label htmlFor="has_health_endpoint" className="font-normal">
+          <Checkbox
+            id="has_health_endpoint"
+            checked={hasHealthEndpoint}
+            onChange={(e) => setHasHealthEndpoint(e.target.checked)}
+          />
+          Has <code className="font-mono text-xs">/health</code> endpoint
+        </Label>
       </div>
 
       <DialogFooter>

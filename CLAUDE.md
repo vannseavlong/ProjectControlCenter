@@ -10,10 +10,16 @@ console to talk to them. Full architecture, data model, and phased build order l
 [project-control-center-plan.md](./project-control-center-plan.md) — read it before making
 product decisions.
 
-**Current state: structure-only scaffold.** Routes, API stubs, and package boundaries exist;
-no business logic (health pinging, wake-up polling, agent execution, voice) is implemented yet.
-API routes under `apps/web/src/app/api/**` all return `501 Not Implemented` until Phase 1 work
-lands. Don't assume a route does anything just because it exists.
+**Current state: phases 1–3 of plan.md §9 are built and wired to a live Google Sheet** —
+Projects/Agents/Settings CRUD, Render health pinging + wake-up polling (with a `/health`-then-
+bare-`url` fallback and auto-detected `has_health_endpoint` tracking), Vercel deploy status,
+Open-Graph-scraped site thumbnails, the GitHub Actions health-check cron, the full Mission
+Control design system, and email/password + Google OAuth auth are all real and working — not
+stubs. The one deliberate exception: `POST /api/agents/:id/message` still 501s, since it depends
+on the agent-bridge daemon (Phase 4, `apps/agent-bridge`), which remains an unimplemented
+skeleton — don't assume voice/chat execution works. `Tasks/app-backend.md` and
+`Tasks/app-frontend.md` are the authoritative up-to-date checklists of what's actually built;
+`Tasks/agent-chat.md`'s Log has the detailed history and reasoning behind each decision.
 
 ### Multiple agents work this repo concurrently
 
@@ -60,15 +66,20 @@ apps/
   agent-bridge/   Local daemon skeleton (Phase 4, not implemented). Will poll command_queue
                   and drive Claude Code sessions on the user's machine — see agent-bridge.md.
 packages/
-  types/          Shared TS interfaces: Project, Agent, PingLog, Command + their enum unions.
-                  Zero runtime dependencies — this is the leaf of the dependency graph.
+  types/          Shared TS interfaces: Project, Agent, PingLog, Command, SettingRow + their enum
+                  unions. Zero runtime dependencies — this is the leaf of the dependency graph.
   db/             longcelot-sheet-db schemas (schemas/admin/*.ts) + a typed adapter singleton
                   (src/adapter.ts, src/tables.ts). Exports getAdapter()/getAdminContext() and
                   typed table helpers (projectsTable(), agentsTable(), pingLogsTable(),
-                  commandQueueTable()). Nothing outside this package calls createSheetAdapter
-                  directly.
-  ui/             Shared React primitives (Card, StatusDot, Button), Tailwind-styled.
-                  Presentation only.
+                  commandQueueTable(), settingsTable()). Nothing outside this package calls
+                  createSheetAdapter directly. New schema file added? It also has to be added to
+                  buildAdapter()'s registerSchemas([...]) call in src/adapter.ts — a schema file
+                  existing alone type-checks fine but throws `SchemaError` at runtime, since
+                  registration is a separate step (see Tasks/agent-chat.md's 2026-07-16 20:48 log
+                  entry for how this bit someone already).
+  ui/             Shared React primitives (Card, StatusDot, Button, Table, Dialog, DropdownMenu,
+                  Checkbox, Sparkline, UptimeHistory, etc.), Tailwind-styled. Presentation only —
+                  no data-fetching, no @pcc/types import (see boundaries below).
   config/         Shared tsconfig.base.json, ESLint flat configs, Tailwind preset.
 ```
 
@@ -113,11 +124,40 @@ packages on whichever config actually matches what they ship.
 ### Data layer (longcelot-sheet-db)
 
 Single-user tool — one `admin` actor pointed at one Google Sheet (`ADMIN_SHEET_ID`), no
-multi-tenant actor setup. Four tables defined in `packages/db/schemas/admin/`: `projects`,
-`agents`, `ping_logs`, `command_queue` (mirrors plan.md §5). `packages/db/lsdb.config.ts` and
-the two `.env.example` files (`packages/db/.env.example` for Google OAuth creds,
-`apps/web/.env.example` for `RENDER_API_KEY`/`VERCEL_API_TOKEN`) are intentionally separate —
-Sheets credentials vs. Render/Vercel credentials are different concerns.
+multi-tenant actor setup. Five tables defined in `packages/db/schemas/admin/`: `projects`,
+`agents`, `ping_logs`, `command_queue`, `settings` (key/value, `secret` boolean — Render/Vercel
+tokens etc., read/write via `/api/settings`; secrets are never echoed back once saved, see
+`apps/web/src/app/api/settings/route.ts`). `packages/db/lsdb.config.ts` and the two
+`.env.example` files (`packages/db/.env.example` for Google OAuth creds, `apps/web/.env.example`
+for `RENDER_API_KEY`/`VERCEL_API_TOKEN`/auth vars/`CRON_SECRET`) are intentionally separate —
+Sheets credentials vs. Render/Vercel credentials vs. portal-auth credentials are different
+concerns. Note `packages/db`'s env vars must be *mirrored* into `apps/web/.env` too — Next.js
+doesn't load env files from sibling packages, so the API routes (which run in the `apps/web`
+process) need their own copy.
+
+`boolean()` columns (e.g. `settings.secret`, `projects.has_health_endpoint`) render as a Sheets
+dropdown (`TRUE`/`FALSE`), not a native checkbox — deliberate on lsdb's part, since the native
+checkbox type writes a real `FALSE` into every blank cell it covers, which breaks how lsdb tells
+a genuinely-empty row apart from an explicit `false`. An unset boolean cell staying truly blank
+is correct, not a bug.
+
+### Auth
+
+Email/password *and* Google OAuth, single allowed identity (`AUTH_ALLOWED_EMAIL`) — resolves
+plan.md §10's open auth decision. Gate lives in `apps/web/src/proxy.ts` (Next 16 renamed
+`middleware.ts` → `proxy.ts`), not the layout, so unauthenticated requests redirect before any
+page renders. New routes under `apps/web/src/app/api/auth/**`. See `apps/web/.env.example` for
+the full var list (`GOOGLE_OAUTH_CLIENT_ID/SECRET`, `AUTH_ALLOWED_EMAIL`, `AUTH_PASSWORD_HASH`,
+`AUTH_SESSION_SECRET`).
+
+### Cron & thumbnails — resolved open decisions from plan.md §10
+
+- **Cron:** GitHub Actions (`.github/workflows/health-check-cron.yml`, every 10 min, `CRON_SECRET`
+  bearer auth against `GET /api/cron/health-check`) rather than Vercel Cron — Vercel's Hobby tier
+  only allows daily schedules, too infrequent to keep a Render free-tier service warm.
+- **Site thumbnails:** neither self-hosted Puppeteer nor a paid screenshot API — each frontend
+  project's own Open Graph (`og:image`/`twitter:image`) meta tag is scraped instead
+  (`apps/web/src/lib/og-image.ts`), no external service or API key needed.
 
 ### Design system
 

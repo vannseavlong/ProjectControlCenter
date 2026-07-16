@@ -34,6 +34,18 @@ export function useUpdateProject() {
   });
 }
 
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.projects.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      toast.success("Project deleted");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 export function useWakeProject() {
   const queryClient = useQueryClient();
   return useMutation({

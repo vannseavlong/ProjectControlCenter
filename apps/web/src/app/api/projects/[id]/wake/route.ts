@@ -25,6 +25,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     const projectStatus: ProjectStatus = result.ok ? "up" : "down";
     const last_checked = new Date().toISOString();
 
+    // See apps/web/src/app/api/projects/[id]/health/route.ts for why this is conditional — a
+    // timed-out final attempt (healthEndpointDetected === null) leaves has_health_endpoint alone.
+    const healthEndpointUpdate =
+      result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
+
     await pingLogsTable().create({
       project_id: project._id,
       status: pingStatus,
@@ -32,11 +37,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     });
     await projectsTable().update({
       where: { _id: project._id },
-      data: { status: projectStatus, last_checked },
+      data: { status: projectStatus, last_checked, ...healthEndpointUpdate },
     });
 
     return apiOk({
-      project: { ...project, status: projectStatus, last_checked },
+      project: { ...project, status: projectStatus, last_checked, ...healthEndpointUpdate },
       wake: result,
     });
   });

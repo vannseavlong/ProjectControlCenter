@@ -46,6 +46,13 @@ async function checkProject(project: Project): Promise<{ project_id: string; sta
   const status: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
   const last_checked = new Date().toISOString();
 
+  // Opportunistically keeps has_health_endpoint accurate on every scheduled run, same rule as the
+  // manual health/wake routes — see apps/web/src/app/api/projects/[id]/health/route.ts. This is
+  // what makes the field self-correcting over time even if nobody ever revisits a given project:
+  // add a `/health` route later, and the next cron pass picks it up automatically.
+  const healthEndpointUpdate =
+    result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
+
   await pingLogsTable().create({
     project_id: project._id,
     status: pingStatus,
@@ -53,7 +60,7 @@ async function checkProject(project: Project): Promise<{ project_id: string; sta
   });
   await projectsTable().update({
     where: { _id: project._id },
-    data: { status, last_checked },
+    data: { status, last_checked, ...healthEndpointUpdate },
   });
 
   return { project_id: project._id, status };

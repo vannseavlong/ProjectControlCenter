@@ -16,4 +16,5 @@ export interface Project extends WithTimestamps {
   status: ProjectStatus;
   last_checked?: string;
   notes?: string;
+  has_health_endpoint?: boolean;
 }

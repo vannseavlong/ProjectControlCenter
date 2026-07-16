@@ -1,7 +1,8 @@
 "use client";
 
-import { Server, Zap } from "lucide-react";
+import { GitFork, Server, TriangleAlert, Trash2, Zap } from "lucide-react";
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -17,10 +18,11 @@ import {
   UptimeHistory,
 } from "@pcc/ui";
 import type { PingLog, Project } from "@pcc/types";
-import { useProjects, useWakeProject } from "@/hooks/useProjects";
+import { useDeleteProject, useProjects, useWakeProject } from "@/hooks/useProjects";
 import { usePingLogs } from "@/hooks/usePingLogs";
 import { formatRelativeTime, pingStatusToTone } from "@/lib/format";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 /** Ping logs for one project, chronological (oldest first) — feeds both the row sparkline and the history section below. */
 function projectPingLogsAscending(pingLogs: PingLog[] | undefined, projectId: string): PingLog[] {
@@ -42,6 +44,48 @@ function WakeButton({ project }: { project: Project }) {
       <Zap className="size-3.5" />
       {wakeProject.isPending ? "Waking…" : "Wake up"}
     </Button>
+  );
+}
+
+/** Yes/No/— indicator for every row, not just a warning when it's missing — lets the user scan the whole roster at a glance. */
+function HealthEndpointBadge({ hasHealthEndpoint }: { hasHealthEndpoint: boolean | undefined }) {
+  if (hasHealthEndpoint === false) {
+    return (
+      <Badge variant="outline" className="border-status-sleeping/40 text-status-sleeping">
+        <TriangleAlert className="size-3" aria-hidden />
+        No
+      </Badge>
+    );
+  }
+  if (hasHealthEndpoint === true) {
+    return (
+      <Badge variant="outline" className="border-status-up/40 text-status-up">
+        Yes
+      </Badge>
+    );
+  }
+  // Legacy row created before this field existed — genuinely unknown, don't guess either way.
+  return <span className="text-xs text-muted-foreground">—</span>;
+}
+
+function DeleteProjectButton({ project }: { project: Project }) {
+  const deleteProject = useDeleteProject();
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button
+          variant="ghost"
+          className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+          aria-label={`Delete ${project.project_name}`}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      }
+      title={`Delete ${project.project_name}?`}
+      description="Permanently removes this project and its ping history. This can't be undone."
+      confirmLabel="Delete"
+      onConfirm={() => deleteProject.mutateAsync(project._id)}
+    />
   );
 }
 
@@ -78,6 +122,7 @@ export default function BackendServicesPage() {
               <TableRow>
                 <TableHead>Service</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Health API</TableHead>
                 <TableHead>Last checked</TableHead>
                 <TableHead>Response time</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -92,17 +137,37 @@ export default function BackendServicesPage() {
                 return (
                   <TableRow key={project._id}>
                     <TableCell className="font-medium">
-                      <div className="flex flex-col">
+                      <div className="flex flex-col gap-0.5">
                         <span>{project.project_name}</span>
                         {project.url ? (
                           <a href={project.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-primary">
                             {project.url}
                           </a>
                         ) : null}
+                        {project.repo_url || project.render_service_id ? (
+                          <div className="flex items-center gap-2">
+                            {project.repo_url ? (
+                              <a
+                                href={project.repo_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                              >
+                                <GitFork className="size-3" aria-hidden /> Repo
+                              </a>
+                            ) : null}
+                            {project.render_service_id ? (
+                              <span className="font-mono text-[10px] text-muted-foreground">{project.render_service_id}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell>
                       <StatusDot tone={project.status} label={project.status} />
+                    </TableCell>
+                    <TableCell>
+                      <HealthEndpointBadge hasHealthEndpoint={project.has_health_endpoint} />
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {formatRelativeTime(project.last_checked)}
@@ -114,6 +179,7 @@ export default function BackendServicesPage() {
                       <div className="flex items-center justify-end gap-1">
                         <AddProjectDialog type="backend" editingProject={project} />
                         <WakeButton project={project} />
+                        <DeleteProjectButton project={project} />
                       </div>
                     </TableCell>
                   </TableRow>

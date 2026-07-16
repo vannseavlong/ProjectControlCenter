@@ -13,6 +13,7 @@ export { Avatar, AvatarImage, AvatarFallback } from "./Avatar";
 export { Input } from "./Input";
 export { Label } from "./Label";
 export { Textarea } from "./Textarea";
+export { Checkbox } from "./Checkbox";
 
 export {
   Table,

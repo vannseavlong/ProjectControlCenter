@@ -39,18 +39,19 @@ The one non-obvious piece: the portal is hosted on Vercel, but your project file
 ## 4. Core Modules
 
 ### 4.1 Project Registry
-The shared data model everything else reads from — a `projects` table defined with lsdb's schema DSL and synced to your admin Google Sheet. One row per project, columns: `name, type (frontend/backend), platform, repo_url, render_service_id, vercel_project_id, url, thumbnail_url, status, last_checked, notes` (lsdb adds `_id`, `_created_at`, `_updated_at` automatically).
+The shared data model everything else reads from — a `projects` table defined with lsdb's schema DSL and synced to your admin Google Sheet. One row per project, columns: `name, type (frontend/backend), platform, repo_url, render_service_id, vercel_project_id, url, thumbnail_url, status, last_checked, notes, has_health_endpoint` (lsdb adds `_id`, `_created_at`, `_updated_at` automatically). `has_health_endpoint` is a user-manageable flag, opportunistically auto-detected (and self-corrected over time) whenever the app pings a project's `/health` route for any other reason — see 4.2.
 
 ### 4.2 Health & Keep-Alive Monitor
-- A cron job (Vercel Cron or a scheduled GitHub Action) hits each Render service's `/health` on an interval shorter than Render's free-tier sleep timeout (typically 15 minutes), so services never go fully idle if you want them always warm.
+- A cron job (resolved: a scheduled GitHub Action, see §10) hits each Render service's `/health` on an interval shorter than Render's free-tier sleep timeout (typically 15 minutes), so services never go fully idle if you want them always warm.
 - A manual "Wake up" button pings once and polls until the service returns 200, showing a spinner while the cold start completes.
 - Log each ping's timestamp, status, and response time so you can chart uptime.
+- Not every tracked service exposes `/health` — a plain 404 from it doesn't mean the service is down, so the ping logic falls back to the bare project `url` before concluding "down." Separately, `has_health_endpoint` (4.1) gets opportunistically set from whichever of these checks last got a conclusive (non-timeout) answer from `/health` specifically — create, edit, manual health check, Wake up, and the cron loop all feed it, so it self-corrects without the user maintaining it by hand.
 
 **UI:** list of backend services, colored status dot, last-checked timestamp, "Wake up" button, small response-time sparkline.
 
 ### 4.3 Frontend Status Module
 - Pull deployment status per project from the Vercel API (needs a Vercel access token stored in your settings tab).
-- For thumbnails: either use a screenshot microservice (self-hosted Puppeteer on Render, or a third-party screenshot API) run on a schedule, storing images in Drive with the link cached in the sheet — or skip thumbnails initially and add them in phase 2.
+- Thumbnails (resolved, see §10): no screenshot microservice at all — each frontend project's own Open Graph (`og:image`/`twitter:image`) meta tag is scraped and cached in `thumbnail_url` whenever the project is created or edited. No external service, no API key, no Drive dependency.
 
 **UI:** card grid — thumbnail, live/down badge, "Open site" link, last-deployed time.
 
@@ -84,7 +85,7 @@ export default {
 
 ```typescript
 // schemas/admin/projects.ts
-import { defineTable, string, number, date } from 'longcelot-sheet-db';
+import { defineTable, string, number, date, boolean } from 'longcelot-sheet-db';
 
 export default defineTable({
   name: 'projects',
@@ -102,6 +103,7 @@ export default defineTable({
     status: string().enum(['up', 'down', 'sleeping', 'unknown']).default('unknown'),
     last_checked: date(),
     notes: string(),
+    has_health_endpoint: boolean().default(true),
   },
 });
 
@@ -145,6 +147,20 @@ export default defineTable({
     result: string(),
   },
 });
+
+// schemas/admin/settings.ts — key/value store for Render/Vercel tokens etc. (§6 Settings tab).
+// Env vars alone can't be written at runtime from a Vercel serverless function, so this is the
+// read/write half; `secret: true` rows never get their `value` echoed back by the API once saved.
+export default defineTable({
+  name: 'settings',
+  actor: 'admin',
+  timestamps: true,
+  columns: {
+    key: string().required().unique(),
+    value: string(),
+    secret: boolean().default(false),
+  },
+});
 ```
 
 Run `npx lsdb sync` after defining these to create the tabs in your admin sheet, and `npx lsdb erdiagram` any time you want an up-to-date ER diagram of how they relate.
@@ -163,12 +179,18 @@ Run `npx lsdb sync` after defining these to create the tabs in your admin sheet,
 - **Frontend:** Next.js + Tailwind, deployed on Vercel (matches your existing hosting)
 - **API layer:** Next.js API routes for most things; a small separate Render service only if you need something long-running (e.g. a daemon or scheduled job that Vercel's serverless model doesn't suit)
 - **Data:** `longcelot-sheet-db` — install as a dependency of your Next.js API routes (or a small Express service if you split the backend out), run `lsdb init`, define the schemas in section 5, `lsdb sync` to create the tabs. Requires Google OAuth credentials for the backend-to-Sheets connection (separate from any auth on the portal itself).
-- **Cron:** Vercel Cron Jobs, or a scheduled GitHub Actions workflow if you want it decoupled from Vercel
-- **Screenshots:** Puppeteer microservice on Render, or a third-party screenshot API if you'd rather not maintain it
-- **Voice:** Web Speech API to start; ElevenLabs/Whisper as a later upgrade
+- **Cron (resolved):** a scheduled GitHub Actions workflow (`.github/workflows/health-check-cron.yml`, every 10 min) hitting a `CRON_SECRET`-authenticated route — not Vercel Cron, whose Hobby tier only allows daily schedules
+- **Screenshots (resolved):** neither — each frontend project's own Open Graph `og:image` meta tag is scraped instead, no microservice or third-party API
+- **Voice:** Web Speech API (implemented, browser-only); ElevenLabs/Whisper upgrade still not built
 - **Agent execution:** Claude Agent SDK driving Claude Code sessions, or a local bridge daemon (see section 10)
 
 ## 8. Minimum API Surface
+
+This was the original starting-point spec; the actual surface grew beyond it as the app got
+built — **see `Tasks/app-backend.md` for the current, authoritative route list** (adds
+`PATCH`/`DELETE /api/projects/:id`, `GET /api/projects/:id/deploy-status`, `GET /api/ping-logs`,
+`GET`/`POST /api/settings`, `cron/health-check`, and the `apps/web/src/app/api/auth/**` routes on
+top of everything below — all real, only `POST /api/agents/:id/message` is still the 501 stub).
 
 ```
 GET    /api/projects
@@ -184,22 +206,22 @@ POST   /api/agents/:id/message         → voice/text in, agent reply out
 
 ## 9. Build Phases
 
-1. **Core monitoring** — Projects sheet, Backend Services tab with health/wake, Frontend Sites grid (no thumbnails yet)
-2. **Thumbnails + uptime history**
-3. **Agent roster CRUD** — records only, no execution yet
-4. **Agent execution** — wire up the bridge (local daemon or SDK) with text chat
-5. **Voice console** — layer STT/TTS on top of phase 4
+1. **Core monitoring** ✅ — Projects sheet, Backend Services tab with health/wake, Frontend Sites grid (no thumbnails yet)
+2. **Thumbnails + uptime history** ✅ — Open Graph thumbnails, per-service uptime history chart, `has_health_endpoint` tracking, delete, Settings tab
+3. **Agent roster CRUD** ✅ — records only, no execution yet
+4. **Agent execution** — not started; `apps/agent-bridge` is still an unimplemented skeleton, `POST /api/agents/:id/message` still 501s
+5. **Voice console** — UI built (mic capture, transcript, canned commands, `SpeechSynthesis` playback), but sending is blocked on phase 4 landing — see the "not wired up yet" banner in the Voice Console
 
 Each phase is independently useful, so you get value even if you stop after phase 2 or 3.
 
 ## 10. Open Decisions (worth settling before you build 4.4/4.5)
 
-- **How do agents actually touch local project files?**
+- **How do agents actually touch local project files? — still open, not yet built (phase 4).**
   - *Option A — local bridge daemon:* a small Node/Python process runs on your machine, polls the CommandQueue sheet, executes via the Claude Code CLI in the target path, writes results back. Portal stays purely a hosted control surface.
   - *Option B — deep link to Claude Code/Cowork's own remote access:* the portal doesn't reimplement execution at all — it just launches or hands off to a Claude Code/Cowork session already pointed at that project, and you interact there. Less custom code, less flexibility inside your portal's own UI.
-- **Screenshot source:** self-hosted Puppeteer (more control, more upkeep) vs. a third-party screenshot API (simpler, has a cost).
-- **Voice quality:** browser-only Web Speech API (free, good enough to start) vs. Whisper/ElevenLabs (better quality, adds cost and a bit of infra).
-- **Auth:** this is a single-user tool holding Render/Vercel tokens — is a simple password gate sufficient, or do you want proper auth from the start? (Separate from this: lsdb itself still needs Google OAuth credentials configured purely for the backend-to-Sheets connection, regardless of how you gate the portal.)
+- **Screenshot source — resolved:** neither self-hosted Puppeteer nor a third-party API. Each frontend project's own Open Graph (`og:image`/`twitter:image`) meta tag is scraped instead (`apps/web/src/lib/og-image.ts`) — simpler than either original option, no external service or cost.
+- **Voice quality — resolved for now:** browser-only Web Speech API, as the cheaper starting option. Whisper/ElevenLabs upgrade not built; revisit only if quality becomes a real problem once phase 4 lands and there's actually something to talk to.
+- **Auth — resolved:** email/password *and* Google OAuth, single allowed identity (`AUTH_ALLOWED_EMAIL`) rather than a plain password gate. Gate lives in `apps/web/src/proxy.ts`. (lsdb's own Google OAuth credentials for the Sheets connection remain a separate concern, as noted below.)
 - **Not really a decision, just worth knowing:** if this ever outgrows Sheets, lsdb ships `lsdb migrate --sql` / `createPostgresAdapter` to move to Postgres/MySQL without rewriting your CRUD calls — a non-issue for a personal tool at this scale, but nice to have if the agent roster grows into something heavier.
 
 ## 11. Constraints & Risks

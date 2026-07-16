@@ -1,4 +1,4 @@
-import { defineTable, string, date } from "longcelot-sheet-db";
+import { defineTable, string, date, boolean } from "longcelot-sheet-db";
 
 export default defineTable({
   name: "projects",
@@ -16,5 +16,12 @@ export default defineTable({
     status: string().enum(["up", "down", "sleeping", "unknown"]).default("unknown"),
     last_checked: date(),
     notes: string(),
+    // User-managed bookkeeping field (not auto-detected) — tracks whether the admin has
+    // implemented a /health route for this project yet. Defaults to true so
+    // existing/legacy rows created before this column don't retroactively read as
+    // "missing" until the user actually reviews them. Purely informational — unrelated to
+    // `status`/`last_checked`, which reflect the last actual ping result, and doesn't feed
+    // into pingHealth's own /health-then-bare-url fallback logic.
+    has_health_endpoint: boolean().default(true),
   },
 });
