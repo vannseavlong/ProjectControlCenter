@@ -1,0 +1,22 @@
+{
+  "name": "@pcc/agent-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pcc/db": "workspace:*",
+    "@pcc/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@pcc/config": "workspace:*",
+    "@types/node": "^26.1.1",
+    "eslint": "^9.39.5",
+    "tsx": "^4.23.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@pcc/db",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit",
+    "db:sync": "lsdb sync",
+    "db:erdiagram": "lsdb erdiagram"
+  },
+  "dependencies": {
+    "@pcc/types": "workspace:*",
+    "longcelot-sheet-db": "0.1.39"
+  },
+  "devDependencies": {
+    "@pcc/config": "workspace:*",
+    "@types/node": "^26.1.1",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3"
+  }
+}

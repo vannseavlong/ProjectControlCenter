@@ -1,0 +1,27 @@
+{
+  "name": "@pcc/config",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./eslint": "./eslint.config.base.mjs",
+    "./eslint-react": "./eslint.config.react.mjs",
+    "./tailwind": "./tailwind.preset.mjs"
+  },
+  "scripts": {
+    "lint": "echo 'no lint target in packages/config'",
+    "type-check": "echo 'no type-check target in packages/config'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@next/eslint-plugin-next": "16.2.10",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "tailwindcss": "^3.4.19",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.64.0"
+  }
+}

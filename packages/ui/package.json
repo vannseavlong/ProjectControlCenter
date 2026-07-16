@@ -1,0 +1,25 @@
+{
+  "name": "@pcc/ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@pcc/config": "workspace:*",
+    "@types/react": "^19.2.17",
+    "eslint": "^9.39.5",
+    "react": "^19.2.7",
+    "typescript": "5.9.3"
+  }
+}
