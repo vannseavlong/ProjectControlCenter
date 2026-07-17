@@ -52,10 +52,26 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
 
 ## 2. Agents API
 - [x] `GET /api/agents` — list from `agentsTable()`
-- [x] `POST /api/agents` — create (project ref, local path, brief, persona)
-- [x] `PATCH /api/agents/:id` — pause/fire (status transitions only, no hard delete here)
+- [x] `POST /api/agents` — create (project ref, local path, brief, persona); also accepts optional
+      `voice_uri`/`voice_name` now (same "pass through if string else undefined" pattern as
+      `brief`) — backs the Voice Console's per-agent voice selection, see `Tasks/app-frontend.md`
+      §4/§5.
+- [x] `PATCH /api/agents/:id` — no longer status-transitions-only. Rewritten to the same
+      `"field" in body` partial-update convention as `PATCH /api/projects/[id]` — `status`
+      (pause/resume/fire, still bumps `last_active` when present), `voice_uri`, and `voice_name`
+      are all independently optional, so a request can patch just the voice fields (or just
+      status, or both) without the other 400ing. `last_active` is only bumped when `status` is
+      actually part of the request body, not on a voice-only patch. 400s if the body has none of
+      those three keys ("No editable fields present in request body"). Other field edits (brief,
+      path, etc.) still aren't exposed here; hard delete is `DELETE` below.
 - [x] `DELETE /api/agents/:id` — hard delete row
-- [x] `POST /api/agents/:id/message` — phase 4+, depends on agent-bridge being ready; stub should 501 until then (left as-is, already correct)
+- [x] `POST /api/agents/:id/message` — agent-bridge is ready; no longer a 501 stub. Enqueues
+      `commandQueueTable().create({ agent_id, instruction: message })` and returns
+      `200 { command_id, status }`; 400 on empty/non-string `message`, 404 if the agent doesn't
+      exist, 409 if `agent.status !== "active"`. New `GET /api/commands/:id` (`apps/web/src/app/api/commands/[id]/route.ts`)
+      reads the row back (`200 { command }` / `404`) so the caller can poll until `status` is
+      `done`/`failed`. Full contract in `Tasks/agent-chat.md`'s "Finalized contract
+      (2026-07-17 10:00)" entry and the `2026-07-17` log entry below it.
 
 ## 3. Frontend status
 - [x] Fold Vercel deployment status into `GET /api/projects` response (or a dedicated `/api/projects/:id/deploy-status` if it needs to stay separate for caching reasons) — went with the dedicated route, see its docstring

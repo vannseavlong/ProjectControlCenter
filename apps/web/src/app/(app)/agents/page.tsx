@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, MoreVertical, Pause, Play, Trash2, Users } from "lucide-react";
+import { Flame, MoreVertical, Pause, Play, Trash2, Users, Volume2 } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -21,6 +21,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { formatRelativeTime } from "@/lib/format";
 import { CreateAgentDialog } from "@/components/CreateAgentDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ChangeVoiceDialog } from "@/components/ChangeVoiceDialog";
 
 const STATUS_BADGE: Record<AgentStatus, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -69,6 +70,14 @@ function AgentCard({ agent, projectName }: { agent: Agent; projectName: string }
                 <Play className="size-4" /> Reactivate
               </DropdownMenuItem>
             ) : null}
+            <ChangeVoiceDialog
+              agent={agent}
+              trigger={
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Volume2 className="size-4" /> Change voice
+                </DropdownMenuItem>
+              }
+            />
             {agent.status !== "fired" ? (
               <ConfirmDialog
                 trigger={

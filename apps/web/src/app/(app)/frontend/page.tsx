@@ -165,21 +165,25 @@ function SiteCard({ project }: { project: Project }) {
 
   return (
     <Card className="flex flex-col gap-3 p-0 overflow-hidden">
-      <div className="flex aspect-video max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground">
+      <div className="flex aspect-[1200/630] max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground">
         {project.thumbnail_url && !imageFailed ? (
           // Plain <img>, not next/image: thumbnail URLs point at arbitrary external domains (each
           // site's own og:image), not viable with next/image's fixed remote hostname allowlist.
           // min-h-0: as a flex item, <img> defaults to an automatic min-height based on its own
-          // intrinsic size, which can override the parent's aspect-video ratio for tall/square
+          // intrinsic size, which can override the parent's aspect-[1200/630] ratio for tall/square
           // source images and stretch the whole card — min-h-0 (plus overflow-hidden above) forces
-          // it to respect this box instead. object-contain (not object-cover): og:image sources are
-          // often logos/portrait art, not photos — scale to fit and letterbox on bg-muted rather
-          // than cropping content off.
+          // it to respect this box instead. aspect-[1200/630] is applied to both this parent div
+          // and the <img> itself (1.91:1, the standard og:image/twitter:image dimensions) so the
+          // ratio is enforced on the actual rendered image box, not just inferred from the parent's
+          // flex sizing — well-formed thumbnails fill it exactly with no letterboxing.
+          // object-contain (not object-cover): og:image sources aren't always standard-ratio —
+          // logos/portrait art still show in full, scaled to fit and letterboxed on bg-muted rather
+          // than cropped.
           <img
             src={project.thumbnail_url}
             alt={`${project.project_name} thumbnail`}
             loading="lazy"
-            className="size-full min-h-0 object-contain"
+            className="aspect-[1200/630] size-full min-h-0 object-contain"
             onError={() => setImageFailed(true)}
           />
         ) : (
@@ -325,7 +329,7 @@ export default function FrontendSitesPage() {
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-[4/3] w-full" />
+            <Skeleton key={i} className="aspect-[1200/630] w-full" />
           ))}
         </div>
       ) : sites.length === 0 ? (

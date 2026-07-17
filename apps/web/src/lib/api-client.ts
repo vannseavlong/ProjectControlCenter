@@ -1,4 +1,4 @@
-import type { Agent, AgentStatus, PingLog, Project, ProjectPlatform, ProjectType } from "@pcc/types";
+import type { Agent, AgentStatus, Command, PingLog, Project, ProjectPlatform, ProjectType } from "@pcc/types";
 import type { PingResult, WakeResult } from "@/lib/render";
 import type { VercelDeploymentStatus } from "@/lib/vercel";
 import type { ReachabilityResult } from "@/lib/reachability";
@@ -41,6 +41,14 @@ export interface CreateAgentInput {
   assigned_project_id: string;
   local_project_path: string;
   brief?: string;
+  voice_uri?: string;
+  voice_name?: string;
+}
+
+/** Body shape for `PATCH /api/agents/:id`'s voice-only update — see `updateVoice` below. */
+export interface UpdateAgentVoiceInput {
+  voice_uri?: string;
+  voice_name?: string;
 }
 
 export interface SaveSettingInput {
@@ -105,10 +113,28 @@ export const api = {
       fetchJson<{ agent: Agent }>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }).then(
         (r) => r.agent,
       ),
+    /** Voice-only partial update — omitted fields are left untouched, same "present in body" semantics as `PATCH /api/agents/:id`. */
+    updateVoice: (id: string, input: UpdateAgentVoiceInput) =>
+      fetchJson<{ agent: Agent }>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
+        (r) => r.agent,
+      ),
     remove: (id: string) => fetchJson<{ deleted: true; id: string }>(`/api/agents/${id}`, { method: "DELETE" }),
-    /** Still the 501 stub server-side (blocked on agent-bridge) — wired up so the Voice Console only needs a swap once it's real. */
+    /**
+     * Queues a `command_queue` row and returns immediately — the agent-bridge daemon shells out
+     * to Claude Code out-of-band and can take up to `AGENT_BRIDGE_COMMAND_TIMEOUT_MS` (10 min
+     * default) to actually resolve it, so this no longer returns a synchronous reply. Poll
+     * `api.commands.get(command_id)` until its `status` is terminal — see `useCommandPoll`.
+     * 404s if the agent is missing, 409s if `agent.status !== "active"`.
+     */
     sendMessage: (id: string, message: string) =>
-      fetchJson<{ reply: string }>(`/api/agents/${id}/message`, { method: "POST", body: JSON.stringify({ message }) }),
+      fetchJson<{ command_id: string; status: string }>(`/api/agents/${id}/message`, {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      }),
+  },
+  commands: {
+    /** 404s if the command doesn't exist. */
+    get: (id: string) => fetchJson<{ command: Command }>(`/api/commands/${id}`),
   },
   pingLogs: {
     list: () => fetchJson<{ pingLogs: PingLog[] }>("/api/ping-logs").then((r) => r.pingLogs),

@@ -5,10 +5,12 @@ import { config } from "./config";
 import { logger } from "./logger";
 
 /**
- * Combines the agent's persistent `brief` with this command's one-off `instruction`. Every
- * `claude -p` call is a fresh, memory-less process (no `--resume`/session continuity across
- * commands — see README's "Known limitations"), so the brief has to be re-supplied every time or
- * the agent would have no standing context at all beyond the single instruction.
+ * Combines the agent's persistent `brief` with this command's one-off `instruction`. Even with
+ * session continuity (`--resume`, see claude-cli.ts), the brief is still re-supplied on every
+ * call: a resumed session already has the prior conversation's context, but re-stating the
+ * standing brief is cheap and guards against the resume falling back to a fresh session (stale/
+ * invalid `claude_session_id` — see README's "Known limitations"), in which case the brief would
+ * be the agent's only context.
  */
 function buildPrompt(agent: Agent, instruction: string): string {
   const parts: string[] = [];
@@ -58,13 +60,22 @@ export async function executeCommand(command: Command): Promise<void> {
   logger.info("executing command", { ...logFields, local_project_path: agent.local_project_path });
 
   const prompt = buildPrompt(agent, command.instruction);
-  const result = await runClaudeCommand(agent.local_project_path, prompt);
+  const result = await runClaudeCommand(agent.local_project_path, prompt, agent.claude_session_id);
   const status: CommandStatus = result.success ? "done" : "failed";
 
   await finish(commandId, status, result.text);
+
+  // A `session_id` came back means the CLI actually launched and produced a resumable
+  // conversation — even a task-level failure (model says "I couldn't find X") still leaves that
+  // session in place, so persist it. Only skip persisting when no session_id was returned at all
+  // (launch failure or timeout before any turn completed), so we don't overwrite a previously-good
+  // claude_session_id with nothing.
   await agentsTable().update({
     where: { _id: agent._id },
-    data: { last_active: new Date().toISOString() },
+    data: {
+      last_active: new Date().toISOString(),
+      ...(result.sessionId ? { claude_session_id: result.sessionId } : {}),
+    },
   });
 
   logger.info("command finished", {
@@ -72,5 +83,6 @@ export async function executeCommand(command: Command): Promise<void> {
     status,
     timed_out: result.timedOut,
     exit_code: result.exitCode,
+    cost_usd: result.totalCostUsd,
   });
 }

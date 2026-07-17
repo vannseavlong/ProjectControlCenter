@@ -9,4 +9,7 @@ export interface Agent extends WithTimestamps {
   brief?: string;
   status: AgentStatus;
   last_active?: string;
+  claude_session_id?: string;
+  voice_uri?: string;
+  voice_name?: string;
 }

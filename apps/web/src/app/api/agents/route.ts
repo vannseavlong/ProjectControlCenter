@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return apiError(400, "Request body must be JSON");
     }
 
-    const { agent_name, assigned_project_id, local_project_path, brief } = body;
+    const { agent_name, assigned_project_id, local_project_path, brief, voice_uri, voice_name } = body;
 
     if (typeof agent_name !== "string" || agent_name.trim().length === 0) {
       return apiError(400, "agent_name is required");
@@ -32,6 +32,8 @@ export async function POST(request: Request) {
       assigned_project_id,
       local_project_path,
       brief: typeof brief === "string" ? brief : undefined,
+      voice_uri: typeof voice_uri === "string" ? voice_uri : undefined,
+      voice_name: typeof voice_name === "string" ? voice_name : undefined,
       status: "active",
     });
 

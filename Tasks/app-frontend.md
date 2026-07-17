@@ -197,15 +197,51 @@ a control room, not a marketing page.
 - [x] Fire (soft-delete → status `fired`) and hard-delete actions with confirm dialog
 - [x] Per-agent detail page: brief, recent activity, "talk to this agent" → Voice Console
       — "recent activity" is an honest empty state (no agent-bridge yet, nothing to show).
+- [x] Per-agent voice selection for spoken replies — new `apps/web/src/hooks/useSpeechSynthesisVoices.ts`
+      (browser `SpeechSynthesisVoice[]`, lazy-`useState` initializer for the synchronous-on-mount
+      read plus a `voiceschanged` subscription for the async population — see that file's docstring
+      for why the initial read isn't duplicated inside the effect, `react-hooks/set-state-in-effect`
+      flags that) and `apps/web/src/components/VoiceSelect.tsx` (`Select` from `@pcc/ui` populated
+      from the hook, plus a speaker-icon preview button that speaks a sample sentence in the
+      currently-selected voice). `CreateAgentDialog.tsx` now has an optional `VoiceSelect` field
+      wired into the `POST /api/agents` payload. `AgentCard`'s dropdown (`agents/page.tsx`) gained
+      a "Change voice" item using the new `apps/web/src/components/ChangeVoiceDialog.tsx` (same
+      `DropdownMenuItem`-opens-a-`Dialog` composition as the existing `ConfirmDialog`-based
+      Fire/Delete items), which PATCHes just `voice_uri`/`voice_name` via the new
+      `useUpdateAgentVoice` hook / `api.agents.updateVoice` — see `Tasks/app-backend.md` for the
+      route side.
 
 ## 5. Voice Console (`/voice`)
 - [x] Agent picker
 - [x] Mic capture UI (Web Speech API) + live transcript display
 - [x] Reply playback (SpeechSynthesis) + text fallback log
 - [x] Canned quick-command buttons ("status report", "what's blocking you", "assign a task")
-      — all UI is real and functional; actually sending still hits the `POST
-      /api/agents/:id/message` 501 stub (blocked on agent-bridge per backend's note) — the page
-      shows an explicit "not wired up yet" banner rather than pretending it works.
+      — all UI is real and functional; sending now follows the finalized queue-and-poll contract
+      (`Tasks/agent-chat.md`, "Finalized contract (2026-07-17 10:00)"): `POST
+      /api/agents/:id/message` returns `{ command_id, status }` immediately (queues a
+      `command_queue` row rather than replying synchronously), and the page polls `GET
+      /api/commands/:id` via the new `useCommandPoll` hook
+      (`apps/web/src/hooks/useCommandPoll.ts`) every 3s until `status` is `"done"` (renders
+      `result` as the agent's reply + speaks it) or `"failed"` (surfaced as a `system`-role log
+      entry). Gives up after ~11 minutes (220 attempts) — a small buffer past the agent-bridge
+      daemon's 10-minute default command timeout — with a "still running" system message rather
+      than polling forever. The old "not wired up yet" banner is gone; errors (network failure,
+      404/409 from the send call, failed/timeout outcomes) now surface as inline system-role log
+      entries in the transcript instead of a separate persistent Card.
+- [x] Markdown rendering for agent replies + per-agent voice selection — `agent`-role transcript
+      entries now render through `react-markdown` (new dependency; no `rehype-raw`/raw-HTML
+      plugin, since the rendered text is LLM output and stays constrained to safe markdown-only
+      rendering) instead of raw text; `user`/`system` entries are untouched plain text. A small
+      scoped Tailwind class (`AGENT_MARKDOWN_CLASS` in `voice/page.tsx`) substitutes for
+      `@tailwindcss/typography` (not installed — Tailwind v3, this is the only use case) so
+      block-level markdown (lists, code blocks, paragraphs) doesn't collapse onto itself inside
+      the `rounded-lg`/`max-w-[80%]` chat bubble — preflight zeroes `p`/`ul`/`ol` margins by
+      default, so this reset is load-bearing, not cosmetic. `speak()` now also takes the currently
+      selected agent (looked up via `agents?.find(a => a._id === agentId)`) and, if it has a
+      `voice_uri`, matches it against `window.speechSynthesis.getVoices()` and sets
+      `utterance.voice` when found — falls back silently to the browser default otherwise (e.g.
+      the agent's voice was configured on a different machine/browser). See §4 above for the
+      `VoiceSelect`/`ChangeVoiceDialog` UI that sets `voice_uri`.
 
 ## 6. Settings (`/settings`)
 - [x] Render API token field — wired to `/api/settings` (key `render_api_token`, `secret: true`).
@@ -226,5 +262,9 @@ a control room, not a marketing page.
       — chose React Query, 45s default `refetchInterval` in `Providers.tsx`.
 - [x] Wire every stub API route above once `app-backend.md` tasks land
       — projects (list/create/update/health/wake/deploy-status), agents (list/create/patch/delete),
-      and settings (list/save) are all real and wired. Still open: `/api/agents/:id/message` (501,
-      blocked on agent-bridge — the only remaining stub).
+      settings (list/save), and now agent messaging are all wired. `/api/agents/:id/message` +
+      the new `GET /api/commands/:id` follow the queue-and-poll contract (see §5 above and
+      `Tasks/agent-chat.md`'s 2026-07-17 log) — frontend plumbing (`api-client.ts`,
+      `useCommandPoll.ts`, `/voice`) is done on this session's side; depends on the parallel
+      backend session actually landing those two routes (still 501/nonexistent as of this
+      commit) and the agent-bridge daemon being live for command execution to complete for real.

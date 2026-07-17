@@ -22,6 +22,7 @@ import {
 } from "@pcc/ui";
 import { useProjects } from "@/hooks/useProjects";
 import { useCreateAgent } from "@/hooks/useAgents";
+import { VoiceSelect } from "@/components/VoiceSelect";
 
 export function CreateAgentDialog() {
   const [open, setOpen] = useState(false);
@@ -29,6 +30,8 @@ export function CreateAgentDialog() {
   const [projectId, setProjectId] = useState("");
   const [localPath, setLocalPath] = useState("");
   const [brief, setBrief] = useState("");
+  const [voiceUri, setVoiceUri] = useState<string | undefined>(undefined);
+  const [voiceName, setVoiceName] = useState<string | undefined>(undefined);
   const { data: projects } = useProjects();
   const createAgent = useCreateAgent();
 
@@ -37,6 +40,8 @@ export function CreateAgentDialog() {
     setProjectId("");
     setLocalPath("");
     setBrief("");
+    setVoiceUri(undefined);
+    setVoiceName(undefined);
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -46,6 +51,8 @@ export function CreateAgentDialog() {
       assigned_project_id: projectId,
       local_project_path: localPath,
       brief: brief || undefined,
+      voice_uri: voiceUri,
+      voice_name: voiceName,
     });
     reset();
     setOpen(false);
@@ -99,6 +106,16 @@ export function CreateAgentDialog() {
             <div className="space-y-1.5">
               <Label htmlFor="brief">Brief</Label>
               <Textarea id="brief" placeholder="What should this agent focus on?" value={brief} onChange={(e) => setBrief(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Voice (optional)</Label>
+              <VoiceSelect
+                voiceUri={voiceUri}
+                onChange={({ voice_uri, voice_name }) => {
+                  setVoiceUri(voice_uri);
+                  setVoiceName(voice_name);
+                }}
+              />
             </div>
           </div>
 

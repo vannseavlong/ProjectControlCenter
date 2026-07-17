@@ -23,14 +23,14 @@ guessing or silently blocking.
 | Agent | Current focus | Updated |
 |---|---|---|
 | frontend | Two concurrent frontend sessions this round: one `/backend`-scoped (row-actions dropdown + search/pagination, `app-frontend.md` §2, see `23:20` entry below), one `/frontend`-scoped (this entry) — same three asks (dropdown menu, search/pagination, grid/list toggle) now shipped for `/frontend` too, `app-frontend.md` §3 fully checked. See newest log entry below for the `AddProjectDialog`-can't-be-touched workaround used for the Edit dropdown item. Nothing left on my `/frontend`-scoped list except `/api/agents/:id/message` (blocked on agent-bridge, not mine to unblock). | 2026-07-16 23:45 |
-| backend | Done: generic URL-reachability check for non-Vercel frontend hosting shipped (`app-backend.md` §3, was the last unchecked box on my list). See newest log entry below. Nothing left on my list, not blocked on anything. | 2026-07-16 23:10 |
-| agent-bridge | Starting Phase 4 top to bottom (`Tasks/agent-bridge.md`) — polling daemon in `apps/agent-bridge`. Confirmed with user: Option A (local daemon) over Option B (deep-link), per the file's own "open decision" item — proceeding on that basis. frontend/backend both idle, nothing pulled from either lane yet. | 2026-07-17 09:15 |
+| backend | Shipped `POST /api/agents/:id/message` (queues to `command_queue`) + new `GET /api/commands/:id` per the `2026-07-17 10:00` finalized contract — see `12:40` log entry below. Nothing left on my list, not blocked on anything. | 2026-07-17 12:40 |
+| agent-bridge | Phase 4 daemon build is done — every box in `Tasks/agent-bridge.md` checked (poll/claim/execute/recovery loop, graceful shutdown, heartbeat, the Option A/B decision). This round's pass was docs-only: rewrote the stale README, documented the `launchd` day-to-day-running decision and the `agent_bridge_last_seen` heartbeat contract, added the promised "Known limitations" section. See `11:20` log entry. Nothing left on my list — blocked only on the `apps/web` side (message route + bridge-online UI indicator), which is backend/frontend's lane, not mine. | 2026-07-17 11:20 |
 
 ## Open Requests
 
 | From → To | Request | Status |
 |---|---|---|
-| agent-bridge → backend | `POST /api/agents/:id/message` (`apps/web/src/app/api/agents/[id]/message/route.ts`) is still the 501 stub. For Voice Console send + the daemon to actually connect end to end, it needs to insert a row into `command_queue` (`commandQueueTable().create({ agent_id, instruction })`, already registered and usable — no schema/adapter work needed) instead of `notImplemented()`. Out of agent-bridge's own lane per CLAUDE.md's package boundaries (`apps/agent-bridge` never touches `apps/web`) — flagging for whoever picks up backend next, not blocking the daemon build itself since that only needs `commandQueueTable()` polling, which already works standalone. Will confirm the exact `instruction` string format/shape here once the daemon's execution step is built. | Open |
+| *(none currently)* | | |
 
 ## Resolved
 
@@ -38,6 +38,7 @@ guessing or silently blocking.
 |---|---|---|
 | frontend → backend | Need `DELETE /api/projects/:id` (`app-backend.md` §1, last unchecked box) to wire delete affordances on `/backend` and `/frontend`. Specifically need to know: does it 409 (or similar) when the project still has an agent assigned, and if so what's the response body's error message/shape? I'll surface that message verbatim in the confirm-dialog error toast instead of a generic failure string, same as other mutations' `onError` handlers do. | Shipped — 409 with `{ error: string }`, message is already human-readable (names the blocking agents), safe to surface verbatim in the toast. Full contract in the `2026-07-16 21:20` log entry below. |
 | backend → anyone touching `packages/db` | Settings tab (plan §6) needs read **and** write from the UI for Render/Vercel tokens etc. — env vars can't be written at runtime from a Vercel serverless function, so that only supports read. Proposing a `settings` key/value table (`schemas/admin/settings.ts`, columns: `key` (required, unique), `value`, `secret` boolean) alongside the existing four. Holding off on adding it myself since `packages/db` is shared — flag here if you're mid-edit on schemas, otherwise I'll add it in a later pass. `/api/settings` stays unbuilt (no route stub exists yet) until this lands. | Added `packages/db/schemas/admin/settings.ts` + `settingsTable()` + built `GET/POST /api/settings`, see `2026-07-16 20:48` log entry below for full details. |
+| agent-bridge → backend | `POST /api/agents/:id/message` (`apps/web/src/app/api/agents/[id]/message/route.ts`) is still the 501 stub. For Voice Console send + the daemon to actually connect end to end, it needs to insert a row into `command_queue` (`commandQueueTable().create({ agent_id, instruction })`, already registered and usable — no schema/adapter work needed) instead of `notImplemented()`. Out of agent-bridge's own lane per CLAUDE.md's package boundaries (`apps/agent-bridge` never touches `apps/web`) — flagging for whoever picks up backend next, not blocking the daemon build itself since that only needs `commandQueueTable()` polling, which already works standalone. Will confirm the exact `instruction` string format/shape here once the daemon's execution step is built. | Shipped per the `2026-07-17 10:00` finalized contract — `POST /api/agents/:id/message` now creates a `command_queue` row (`200 { command_id, status }`, 400/404/409 as specified) and new `GET /api/commands/:id` reads it back (`200 { command }`, 404 if missing). Full details, live-Sheet verification, and field-name confirmation in the `2026-07-17 12:40` log entry below. |
 
 ## Log
 
@@ -637,4 +638,220 @@ Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit
     the workspace root doesn't have one on PATH — `./apps/agent-bridge/node_modules/.bin/tsx
     --env-file=apps/web/.env`): created a real project with `platform: "other"`, confirmed it
     round-tripped, deleted it, script itself deleted after — nothing left behind.
+- `2026-07-17 11:20` — agent-bridge: docs/checklist pass, no source changes. Re-read every file in
+  `src/` (`config.ts`, `logger.ts`, `queue.ts`, `execute.ts`, `claude-cli.ts`, `index.ts`) against
+  `Tasks/agent-bridge.md` line by line and confirmed the daemon build was already fully done —
+  env/config with defaults, startup health check (`agentsTable().count()`), structured JSON
+  logging, the poll/claim/execute loop with geometric backoff, `claimNextPending()`'s optimistic
+  claim + active-agent filtering (checked twice — once when scanning pending, once again at
+  execution time), `recoverStaleInProgress()`'s crash-recovery requeue, graceful SIGINT/SIGTERM
+  shutdown that finishes rather than abandons the in-flight command, and the `writeHeartbeat()`
+  heartbeat write. Everything in §0–§3 and the "Open decision" item is genuinely built/confirmed —
+  checked off all of it in `Tasks/agent-bridge.md`.
+  - What was actually missing: the README (`apps/agent-bridge/README.md`) still said "Scaffold
+    only... do not add real logic here until Phase 4," actively wrong given the above, and two §4
+    items were implemented in passing but never formally decided/documented:
+    1. **Day-to-day running approach** — decided `launchd` user agent (macOS-native, no extra
+       dependency, `KeepAlive` self-heals a crash) over manual `pnpm dev`/`pm2`. Full plist example
+       + `launchctl load/unload` in the README's new "Running it day-to-day" section.
+    2. **Bridge-online indicator documentation** — the heartbeat write already existed
+       (`queue.ts`'s `writeHeartbeat()`, `settings` table, key `agent_bridge_last_seen`, ISO
+       timestamp, written once per poll cycle) but nothing documented the contract for a consumer.
+       Added a "Bridge online indicator" README section spelling out the key/value shape and a
+       ~2–3x-poll-interval staleness rule (~20–30s at the default 10s interval), plus "missing key
+       = treat as offline" for the pre-first-run case. **Building the actual UI consumer is out of
+       scope for this pass** (it's an `apps/web` concern) — flagging here for whoever picks up that
+       UI work next.
+    3. Also added the "Known limitations" section `claude-cli.ts`'s comment already promised
+       existed (no session continuity across commands/fresh `claude -p` per command, 10-min
+       default command timeout, ~50k-char Sheets cell truncation on `result`, the
+       non-idempotent-retry caveat from `recoverStaleInProgress`'s doc comment, and "only works
+       while the process is running").
+  - Rewrote `apps/agent-bridge/README.md` end to end: what it does, the poll/claim/execute/recovery
+    loop, how to run it (`pnpm dev`/`pnpm start`), the full env var table, the `launchd` section,
+    Known limitations, the bridge-online-indicator contract, the existing Security note (kept,
+    already accurate), and a new "What's not here" section pointing at this file's own
+    `2026-07-17 10:00` finalized-contract entry for the `apps/web` side of the work.
+  - Verification: `pnpm --filter @pcc/agent-bridge type-check` and `pnpm --filter @pcc/agent-bridge
+    lint` both exit 0 with no changes needed — this was a docs/checklist-only pass, no `src/`
+    edits. Scope stayed inside `apps/agent-bridge/**` and `Tasks/agent-bridge.md` per the package
+    boundaries in `CLAUDE.md` — did not touch `apps/web` or `packages/*`.
   - `pnpm --filter @pcc/db type-check`, `pnpm --filter @pcc/web build` both green.
+- `2026-07-17 11:40` — frontend: wired the Voice Console up to the finalized queue-and-poll
+  contract from the `2026-07-17 10:00` entry above. Scope stayed inside `api-client.ts`,
+  `apps/web/src/hooks/**`, and `voice/page.tsx` — did not touch `apps/web/src/app/api/**`
+  (parallel backend session's territory) or `packages/*`/`apps/agent-bridge`.
+  - `api-client.ts`: `agents.sendMessage` now returns `{ command_id: string; status: string }`
+    (was `{ reply: string }`). Added `commands.get(id)` → `{ command: Command }`, importing
+    `Command` from `@pcc/types` (same pattern as `Agent`/`Project`/`PingLog` already imported
+    there) rather than hand-rolling the shape.
+  - New hook `apps/web/src/hooks/useCommandPoll.ts` (`useCommandPoll()` → `{ poll, cancel }`):
+    `poll(commandId)` returns a `Promise<CommandOutcome>` (`"done" | "failed" | "timeout" |
+    "error"` discriminated union) that resolves once `GET /api/commands/:id` reports a terminal
+    status. Polls every 3s — responsive without hammering the route for something that can take
+    minutes. Gives up after 220 attempts (~11 min) — a deliberate small buffer *past* the
+    daemon's 10-min default `AGENT_BRIDGE_COMMAND_TIMEOUT_MS` (per agent-bridge's log entries
+    above), so a command that legitimately times out server-side and lands as `"failed"` is still
+    caught by this window instead of the UI giving up first; only genuinely stuck queue-side
+    commands (daemon not running, etc.) hit the client-side cutoff. Interval is cleaned up via a
+    `useRef` + `useEffect` unmount handler (same pattern already used by
+    `useSpeechRecognition.ts` in this app) — starting a new poll or unmounting always clears any
+    interval in flight, so nothing leaks.
+  - `voice/page.tsx`: `sendMessage` now calls `api.agents.sendMessage` (queues), then `await
+    poll(command_id)`. `"done"` → appends an `agent`-role log entry with `command.result` and
+    still calls `speak(...)` on it, same UX as before. `"failed"` → appends a `system`-role entry
+    with `command.result` (the daemon's human-readable failure reason, not a generic string).
+    `"timeout"` → a `system`-role "still running, check back later" message. `"error"` (network
+    failure reaching either endpoint) and thrown errors from the initial `sendMessage` call
+    (404/409 from the backend, surfaced via `fetchJson`'s existing throw-on-non-2xx) both land as
+    `system`-role entries too, same as `"failed"`. Added a `useEffect` that cancels any in-flight
+    poll when `agentId` changes (or the component unmounts) so a stale reply can't land in what's
+    now a different agent's transcript. Removed the `wireError` state and its "not wired up yet"
+    banner Card entirely — the inline `system`-role log entries (already the existing pattern for
+    surfacing errors in this component) are the equivalent error surface now, just per-message
+    instead of a sticky global banner. `QUICK_COMMANDS` and the mic/speech-recognition wiring
+    untouched.
+  - Verification: `pnpm --filter @pcc/web type-check`, `pnpm --filter @pcc/web lint` (0 errors,
+    same pre-existing `<img>` warning on `/frontend` already flagged elsewhere, unrelated to this
+    change), `pnpm --filter @pcc/web build` all green. Started `pnpm --filter @pcc/web dev` and
+    hit `/voice` directly — 307-redirects to `/login?next=%2Fvoice` with no compile error or 500,
+    same auth-gate limitation prior sessions have noted (no live session cookie to click through
+    the actual polling UI with). `GET /api/commands/[id]` doesn't show up in the `next build`
+    route list yet since backend hadn't landed it at build time — expected, not this session's
+    scope. Didn't touch `Tasks/app-backend.md`; updated `Tasks/app-frontend.md` §5 and the "Data
+    wiring" section to reflect the real implementation instead of the old 501-stub language.
+- `2026-07-17 12:40` — backend: shipped the `2026-07-17 10:00` finalized contract, closing the
+  last open request in this file. Scope stayed inside `apps/web/src/app/api/agents/[id]/message/
+  route.ts` and the new `apps/web/src/app/api/commands/[id]/route.ts` only — did not touch
+  `api-client.ts`/`useAgents.ts`/`voice/page.tsx` (frontend's `11:40` entry above shows they'd
+  already built and landed against this exact contract from their side) or `apps/agent-bridge`/
+  `packages/*` (confirmed `command_queue`'s schema already had everything needed, no changes made).
+  - **`POST /api/agents/:id/message`**: no longer `notImplemented()`. 400 if `message` isn't a
+    non-empty string (`"message must be a non-empty string"`), 404 if the agent doesn't exist
+    (`{ error: "No agent with id <id>" }`, same pattern as the existing `PATCH`/`DELETE` in
+    `apps/web/src/app/api/agents/[id]/route.ts`), 409 if `agent.status !== "active"`
+    (`"Agent is <status>, cannot send it a message. Reactivate it first via PATCH
+    /api/agents/:id."`), else `commandQueueTable().create({ agent_id: id, instruction: message })`
+    → `200 { command_id: command._id, status: command.status }`.
+  - **New `GET /api/commands/:id`**: 404 `{ error: "No command with id <id>" }` if missing, else
+    `200 { command }` — the full `Command` row (`_id`, `agent_id`, `instruction`, `status`,
+    `result`, `_created_at`, `_updated_at`) via `commandQueueTable().findOne({ where: { _id: id
+    } })`. Confirmed `Command`'s actual fields in `packages/types/src/command.ts` before writing
+    anything — matches exactly what was assumed in the finalized-contract note (`agent_id`,
+    `instruction`, `status: CommandStatus`, `result?: string`), no surprises, no schema/adapter
+    changes needed (`packages/db/schemas/admin/command_queue.ts` already had every column).
+  - **Live-verified against the real Sheet**, not just type-check: throwaway `tsx
+    --env-file=.env` script (run from `apps/web`, same pattern as prior sessions in this log)
+    exercising `agentsTable()`/`commandQueueTable()` directly — found the one real agent in the
+    live roster (`status: "active"`), created a command row (`create()`), read it back via
+    `findOne()` confirming the full shape lines up with what the route returns (`result` reads
+    back as `null` when unset, not `undefined` — worth noting for anyone doing strict `undefined`
+    checks on the frontend), then deleted the row. Nothing left behind in the sheet.
+  - `pnpm --filter @pcc/web type-check`, `pnpm --filter @pcc/web lint` (0 errors, same 1
+    pre-existing `<img>` warning already on record, unrelated to this change), `pnpm --filter
+    @pcc/web build` all green — both new/changed routes show up in the build's route list
+    (`/api/agents/[id]/message`, `/api/commands/[id]`).
+  - Updated `Tasks/app-backend.md` §2's `/api/agents/:id/message` line to reflect the real
+    implementation (was incorrectly marked "stub should 501 until then, left as-is, already
+    correct" — that line predated this session and needed fixing, not just checking). Moved this
+    thread's Open Request row to Resolved above.
+- `2026-07-17 13:10` — frontend + backend (agent voice selection & markdown rendering): two small
+  Voice Console feature requests, scoped to `apps/web/**` only per the task brief (schema/types
+  for `agents.voice_uri`/`voice_name`/`claude_session_id` were already added and synced to the
+  Sheet by the requester before this session started — didn't touch `packages/db` or
+  `packages/types`). `claude_session_id` is out of scope here (agent-bridge session continuity,
+  handled by a separate concurrent session, no file overlap).
+  - **New hook** `apps/web/src/hooks/useSpeechSynthesisVoices.ts` — returns the browser's
+    `SpeechSynthesisVoice[]`. `speechSynthesis.getVoices()` is frequently empty until the async
+    `voiceschanged` event fires, so the initial read lives in the `useState` lazy initializer
+    (synchronous-on-mount) and the effect only subscribes to `voiceschanged` — duplicating the
+    synchronous read inside the effect body trips this repo's `react-hooks/set-state-in-effect`
+    lint rule, worth flagging for anyone touching this pattern again.
+  - **New component** `apps/web/src/components/VoiceSelect.tsx` — `Select` from `@pcc/ui`
+    populated from that hook (`"{name} ({lang})"` labels to disambiguate same-name voices across
+    locales), a `DEFAULT_VOICE_VALUE` sentinel for "browser default" (Radix `Select.Item` rejects
+    an empty-string `value`), plus a speaker-icon preview button that speaks a fixed sample
+    sentence in the currently-selected voice via a throwaway `SpeechSynthesisUtterance`.
+  - **`POST /api/agents`** (`apps/web/src/app/api/agents/route.ts`): accepts optional
+    `voice_uri`/`voice_name`, same "string or undefined" pass-through pattern already used for
+    `brief`.
+  - **`PATCH /api/agents/:id`** (`apps/web/src/app/api/agents/[id]/route.ts`): rewritten from
+    "status transitions only, 400s without `status`" to the same `"field" in body` partial-update
+    convention `PATCH /api/projects/[id]` already uses — `status`, `voice_uri`, `voice_name` are
+    now all independently optional; `last_active` only bumps when `status` is actually present in
+    the body (not on a voice-only patch); 400s only if none of the three keys are present at all.
+    Doc comment updated to match. This is the one change here that's technically a backend route,
+    noted in `Tasks/app-backend.md` too.
+  - **`apps/web/src/lib/api-client.ts`**: `CreateAgentInput` gained `voice_uri?`/`voice_name?`;
+    new `UpdateAgentVoiceInput` type and `api.agents.updateVoice(id, input)` (PATCHes just those
+    two fields, mirrors `updateStatus`'s shape).
+  - **`apps/web/src/hooks/useAgents.ts`**: new `useUpdateAgentVoice()`, mirroring
+    `useUpdateAgentStatus`'s mutation/invalidation/toast pattern (`"{agent_name}'s voice
+    updated"`).
+  - **`CreateAgentDialog.tsx`**: added an optional `VoiceSelect` field, sent in the `POST`
+    payload.
+  - **New `apps/web/src/components/ChangeVoiceDialog.tsx`** + **`AgentCard`'s dropdown**
+    (`apps/web/src/app/(app)/agents/page.tsx`): a "Change voice" `DropdownMenuItem` following the
+    same `DropdownMenuItem`-opens-a-`Dialog` composition the existing `ConfirmDialog`-based
+    Fire/Delete items already use (`onSelect={(e) => e.preventDefault()}` on the trigger item so
+    the dropdown doesn't auto-close before the dialog opens) — contains just a `VoiceSelect` +
+    Save button, PATCHing only `voice_uri`/`voice_name` via `useUpdateAgentVoice`.
+  - **`voice/page.tsx`**: `speak()` now takes the current agent (`agents?.find(a => a._id ===
+    agentId)`), looks up its `voice_uri` against `window.speechSynthesis.getVoices()`, and sets
+    `utterance.voice` when a match exists — silently falls back to the browser default otherwise
+    (e.g. the agent's voice was configured on a different machine/browser, so that `voiceURI`
+    doesn't resolve locally). Also: `agent`-role transcript entries now render through
+    `react-markdown` (new dependency, `apps/web/package.json` — no `rehype-raw`/raw-HTML plugin
+    added, since the rendered text is LLM output and this stays constrained to safe markdown-only
+    rendering); `user`/`system` entries are untouched plain text. `AGENT_MARKDOWN_CLASS` (a small
+    scoped Tailwind class defined in that file) substitutes for `@tailwindcss/typography` (not
+    installed — Tailwind v3, no plugin pulled in for this one use case) so block-level markdown
+    (lists, code blocks, paragraphs) doesn't collapse onto itself inside the
+    `rounded-lg`/`max-w-[80%]` chat bubble; preflight zeroes `p`/`ul`/`ol` margins by default so
+    this reset is load-bearing.
+  - Verification: `pnpm --filter @pcc/web type-check`, `pnpm --filter @pcc/web lint` (0 errors —
+    initially 1 error from the `set-state-in-effect` issue above, fixed before this was clean;
+    same 1 pre-existing `<img>` warning on `/frontend` already on record elsewhere, unrelated),
+    `pnpm --filter @pcc/web build` all green. Hit `/agents` and `/voice` against the already-running
+    dev server on :3000 (this session's own `pnpm dev` collided with it on the port and exited,
+    left the existing one running rather than killing it) — both 307-redirect to `/login`, no
+    500/compile error, same no-session-cookie limitation every prior session here has noted.
+    Updated `Tasks/app-frontend.md` §4/§5 and `Tasks/app-backend.md` §2 to match.
+
+- **2026-07-17 04:38** — `apps/agent-bridge` session continuity, scoped to `apps/agent-bridge/**`
+  only (`packages/db`/`packages/types` schema/type work — `agents.claude_session_id` — was already
+  done and synced by the requester before this session started; no overlap with the parallel
+  voice-selection session touching `apps/web`/`voice_uri`/`voice_name` on the same table).
+  - **`src/claude-cli.ts`**: `runClaudeCommand(cwd, prompt, resumeSessionId?)` now passes
+    `--resume <id>` when a session ID is supplied. Confirmed live against the real CLI (2.1.211,
+    `claude --help` lists `-r, --resume [value]`) before writing any of this: (1) a valid
+    `--resume <id>` correctly continues the conversation — same `session_id` in the result, model
+    recalled a value from the prior turn, cache-read token counts confirmed reuse rather than
+    re-derivation; (2) an unresolvable `--resume <id>` (tested with an all-zeros UUID) exits
+    non-zero (1) and writes a plain-text `No conversation found with session ID: <id>` to stderr
+    with **no stdout at all** — not even the usual JSON envelope, i.e. a CLI-level launch failure
+    before any turn runs, not something `is_error` in the JSON surfaces. `isInvalidSessionError()`
+    detects that case (exit code != 0 + stderr text match) and `runClaudeCommand()` retries once
+    with a genuinely fresh session (logging a `warn`) rather than marking the command permanently
+    failed — always on, no config flag, per the request. `ClaudeRunResult`/`ClaudePrintResult`
+    also now carry `sessionId`/`totalCostUsd` (parsed defensively, same `typeof` guard style as
+    the existing `result` check) from the CLI's `session_id`/`total_cost_usd` JSON fields.
+  - **`src/execute.ts`**: passes `agent.claude_session_id` into `runClaudeCommand`; after the call,
+    persists `result.sessionId` back onto the agent row (folded into the existing `last_active`
+    update) whenever one came back at all — including on a task-level failure, since a resumable
+    session still exists in that case; only skipped when no `session_id` was returned (launch
+    failure/timeout). Added `cost_usd: result.totalCostUsd` to the "command finished" log line —
+    first token/cost visibility anywhere in this app.
+  - **Verification**: `pnpm --filter @pcc/agent-bridge type-check` and `lint` both clean (0
+    errors/warnings). Live-tested the actual TS wrapper (not just raw CLI flags) with a small
+    throwaway script calling `runClaudeCommand` directly: one call with a bogus `--resume` ID
+    (confirmed the fallback fires, logs the warning, and still returns a successful fresh-session
+    result with a real `sessionId`/`totalCostUsd`), then one resumed call using that new
+    `sessionId` (confirmed it recalled the prior reply, proving continuity through the wrapper
+    end-to-end, not just the raw CLI). Kept live calls minimal per the cost concern — reused the
+    already-confirmed invalid-session behavior (free, no API turn) plus two cheap real turns.
+  - **`README.md`**: rewrote the "No session continuity across commands" bullet under "Known
+    limitations" to describe the `--resume`/fallback mechanism and the new trade-off it
+    introduces — session context only grows across commands (no pruning/reset yet), so a
+    long-running agent's calls get slower/costlier over time; also notes the new `cost_usd` log
+    field.
