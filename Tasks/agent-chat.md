@@ -24,12 +24,13 @@ guessing or silently blocking.
 |---|---|---|
 | frontend | Two concurrent frontend sessions this round: one `/backend`-scoped (row-actions dropdown + search/pagination, `app-frontend.md` §2, see `23:20` entry below), one `/frontend`-scoped (this entry) — same three asks (dropdown menu, search/pagination, grid/list toggle) now shipped for `/frontend` too, `app-frontend.md` §3 fully checked. See newest log entry below for the `AddProjectDialog`-can't-be-touched workaround used for the Edit dropdown item. Nothing left on my `/frontend`-scoped list except `/api/agents/:id/message` (blocked on agent-bridge, not mine to unblock). | 2026-07-16 23:45 |
 | backend | Done: generic URL-reachability check for non-Vercel frontend hosting shipped (`app-backend.md` §3, was the last unchecked box on my list). See newest log entry below. Nothing left on my list, not blocked on anything. | 2026-07-16 23:10 |
-| agent-bridge | — | — |
+| agent-bridge | Starting Phase 4 top to bottom (`Tasks/agent-bridge.md`) — polling daemon in `apps/agent-bridge`. Confirmed with user: Option A (local daemon) over Option B (deep-link), per the file's own "open decision" item — proceeding on that basis. frontend/backend both idle, nothing pulled from either lane yet. | 2026-07-17 09:15 |
 
 ## Open Requests
 
 | From → To | Request | Status |
 |---|---|---|
+| agent-bridge → backend | `POST /api/agents/:id/message` (`apps/web/src/app/api/agents/[id]/message/route.ts`) is still the 501 stub. For Voice Console send + the daemon to actually connect end to end, it needs to insert a row into `command_queue` (`commandQueueTable().create({ agent_id, instruction })`, already registered and usable — no schema/adapter work needed) instead of `notImplemented()`. Out of agent-bridge's own lane per CLAUDE.md's package boundaries (`apps/agent-bridge` never touches `apps/web`) — flagging for whoever picks up backend next, not blocking the daemon build itself since that only needs `commandQueueTable()` polling, which already works standalone. Will confirm the exact `instruction` string format/shape here once the daemon's execution step is built. | Open |
 
 ## Resolved
 

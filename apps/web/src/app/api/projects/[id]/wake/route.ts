@@ -22,7 +22,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
     const result = await wakeService(project.url);
     const pingStatus: PingStatus = result.ok ? "success" : result.timedOut ? "timeout" : "error";
-    const projectStatus: ProjectStatus = result.ok ? "up" : "down";
+    const projectStatus: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
     const last_checked = new Date().toISOString();
 
     // See apps/web/src/app/api/projects/[id]/health/route.ts for why this is conditional — a
