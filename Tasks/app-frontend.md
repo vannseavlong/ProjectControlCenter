@@ -191,6 +191,40 @@ a control room, not a marketing page.
       `getServerSnapshot` returns `"grid"` during SSR/hydration (matching the server-rendered
       HTML, no mismatch) without a manual effect.
 
+## 3a. SEO Analysis (`/frontend`)
+Depends on `Tasks/app-backend.md` §5 (schema + `analyze-seo` route) landing first. User-requested:
+score every frontend site's SEO on demand, re-runnable, visible on both the grid card/list row and
+a new per-site detail page (no detail page exists for frontend sites today — only `/agents/[id]`
+has this pattern).
+- [ ] `api.projects.analyzeSeo(id)` in `api-client.ts` + `useAnalyzeSeo()` mutation in
+      `useProjects.ts` — mirrors `useWakeProject` exactly (invalidate `PROJECTS_KEY`, success/error
+      toast from `error.message`).
+- [ ] `seoScoreTone(score: number | undefined)` in `lib/format.ts` — ≥90 → `"up"`, 50–89 →
+      `"sleeping"`, <50 → `"down"`, `undefined` (never analyzed) → `"unknown"`. Reuses
+      `StatusDotTone` semantics/color tokens, no new palette entries, same pattern as
+      `projectLiveTone`/`deployReadyStateToTone` in that file.
+- [ ] New `/frontend/[id]` detail page — port the exact shape of `apps/web/src/app/(app)/agents/[id]/page.tsx`:
+      `useParams<{ id: string }>()`, find the project by id over the already-fetched
+      `useProjects()` list (no new single-project GET route needed), back link to `/frontend`,
+      loading `Skeleton`, "Project not found" `EmptyState`. Content:
+        - Header card: name, url, platform badge, Edit/Delete (reuse `AddProjectDialog`/
+          `ConfirmDialog`, same as `SiteActionsMenu` on the list page).
+        - "Analyze SEO" `Button`, spinner while `useAnalyzeSeo`'s mutation is pending — same
+          pending-state pattern as `/backend`'s "Wake up" button.
+        - No `seo_last_analyzed` yet → `EmptyState` prompting to run the first scan.
+        - Has one → overall score as a large tone-colored number/badge (`seoScoreTone`); segment
+          breakdown as 4 labeled rows (Meta/Social/Technical/Accessibility) each with a score and a
+          simple percentage bar — **no new chart dependency**, `DonutChart` is built for
+          part-to-whole slices and doesn't fit a single 0–100 gauge, a plain tone-colored `<div>`
+          width bar is enough; full check list grouped by segment (pass/warn/fail icon + label +
+          `detail` text from `SeoCheckResult`); "Last analyzed `formatRelativeTime(seo_last_analyzed)`".
+- [ ] `SiteCard` + `SiteListRow` (`apps/web/src/app/(app)/frontend/page.tsx`) — add an SEO score
+      `Badge` (tone-colored via `seoScoreTone`, e.g. "SEO 82", or "Not scanned" when
+      `seo_score` is unset) next to the existing platform/status badges; card and row both link
+      into `/frontend/[id]` (currently neither is clickable through to a detail view at all). List
+      view's `Table` gains a new "SEO" `TableHead`/`TableCell` column, positioned like `/backend`'s
+      existing columns.
+
 ## 4. Agent Staff (`/agents`)
 - [x] Roster grid: avatar/name/project/status
 - [x] Create-agent form: project picker, local path input, brief textarea, persona/name

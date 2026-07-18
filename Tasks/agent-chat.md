@@ -855,3 +855,16 @@ Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit
     introduces — session context only grows across commands (no pruning/reset yet), so a
     long-running agent's calls get slower/costlier over time; also notes the new `cost_usd` log
     field.
+- `2026-07-18 09:00` — new work, planned but not yet built: user-requested on-demand SEO scoring
+  for `/frontend` sites (deep-scan from just the base URL, scored by segment, re-runnable per
+  project, surfaced on the grid card + a new list column + a new per-site detail page). Wrote the
+  full plan into `Tasks/app-backend.md` §5 and `Tasks/app-frontend.md` §3a before touching any code
+  — flagging here since this session's plan touches `packages/db` (`projects` schema — 4 new
+  columns) and `packages/types` (`Project` + a new `packages/types/src/seo.ts`), both shared
+  surfaces per CLAUDE.md. **User decision already made**: self-built zero-dependency heuristic
+  analyzer (title/meta/OG-tag/robots/sitemap/alt-text regex checks against the page's own HTML,
+  same no-parser-dependency convention as `og-image.ts`), explicitly *not* the Google PageSpeed
+  Insights API — see §5's header note for the full reasoning. New route:
+  `POST /api/projects/:id/analyze-seo`. No other in-flight session was touching `projects.ts`,
+  `project.ts`, or `frontend/page.tsx` as of this entry — will re-check this log immediately before
+  editing any of them if there's a gap before implementation starts.

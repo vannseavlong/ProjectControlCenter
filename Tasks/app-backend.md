@@ -122,3 +122,45 @@ All of this lives in `apps/web/src/app/api/**` (route handlers) and `apps/web/sr
 - [x] Rate-limit / de-dupe dashboard polling against Sheets' 60 reads/min quota (plan §11) — lean on lsdb's built-in 2s cache, don't fight it — cron loop is sequential rather than `Promise.all`, no extra polling infra added
 - [x] Error shape convention: consistent `{ error: string }` JSON across all routes (already used by the 501 stubs — keep it) — `apiError`/`apiOk`/`withApiErrorHandling` in `src/lib/api-response.ts`, used everywhere
 - [x] Settings tab read/write for tokens — `packages/db/schemas/admin/settings.ts` (key/value table, `secret` boolean) + `settingsTable()` helper + `apps/web/src/app/api/settings/route.ts` (`GET`/`POST`, generic key/value upsert, secrets masked on read). See `Tasks/agent-chat.md` log for details.
+
+## 5. SEO Analysis (Frontend Sites)
+User-requested: on-demand SEO scoring for `/frontend` sites, re-runnable per project, scored by
+segment. **User decision**: self-built zero-dependency heuristic analyzer, not the Google
+PageSpeed Insights API — same "avoid an external paid/keyed service" precedent as the OG-image
+thumbnail decision (`src/lib/og-image.ts`), even though PageSpeed would give real Lighthouse
+scores. Means no real performance/render metric — segments are static-HTML/heuristic checks only.
+- [ ] Schema (`packages/db/schemas/admin/projects.ts`) — add `seo_score: number()`,
+      `seo_segment_scores: json()`, `seo_report: json()`, `seo_last_analyzed: date()`. Mirror onto
+      `Project` in `packages/types/src/project.ts`, plus a new `packages/types/src/seo.ts` for
+      `SeoSegmentKey` (`"meta" | "social" | "technical" | "accessibility"`), `SeoCheckStatus`
+      (`"pass" | "warn" | "fail"`), `SeoCheckResult` (`{ segment, id, label, status, detail }`),
+      `SeoSegmentScores` (`{ meta, social, technical, accessibility }`, each `number`) — exported
+      from `packages/types/src/index.ts`. Run `pnpm --filter @pcc/db db:sync` after (existing
+      table, new columns only — no new schema file, so no `registerSchemas([...])` change needed).
+- [ ] `src/lib/seo-analyzer.ts` — `analyzeSeo(baseUrl: string): Promise<{ score: number;
+      segmentScores: SeoSegmentScores; report: SeoCheckResult[] }>`. Fetches the homepage HTML
+      (same `AbortController` timeout + browser `User-Agent` pattern as `og-image.ts`), plus
+      best-effort `/robots.txt` and `/sitemap.xml` off the same origin. Four segments, each a set
+      of independent pass/warn/fail checks (weights documented inline in the file):
+        - **meta**: title present & 10–60 chars, meta description present & 50–160 chars, exactly
+          one `<h1>`, rough word count ≥300 (thin-content flag, tags stripped via regex — no HTML
+          parser dependency, consistent with `og-image.ts`)
+        - **social**: `og:title`, `og:description`, `og:image` (reuse/extend
+          `extractMetaContent`-style matching from `og-image.ts`), `twitter:card`
+        - **technical**: HTTPS, robots.txt reachable & not `Disallow: /` for `User-agent: *`,
+          sitemap.xml reachable (direct fetch, or referenced via a `Sitemap:` line in robots.txt),
+          canonical `<link rel="canonical">`, viewport `<meta name="viewport">`
+        - **accessibility**: `<img>` alt-text coverage (tiered: ≥90% pass, ≥50% warn, else fail),
+          `lang` attribute on `<html>`, heading-level jump sanity (extract `<h1>`–`<h6>` in document
+          order, flag a skipped level)
+      Segment score = weighted pass/warn/fail average × 100; overall `score` = plain average of the
+      4 segment scores (equal-weighted — a deliberate simplification, not a Lighthouse-equivalent
+      metric, document this in the file). Never throws for a robots/sitemap sub-fetch failure (just
+      fails those specific checks) — only throws if the homepage fetch itself fails, so the route
+      can distinguish "couldn't scan" from "scanned, scored low."
+- [ ] `POST /api/projects/:id/analyze-seo` (new
+      `apps/web/src/app/api/projects/[id]/analyze-seo/route.ts`) — 404 if the project doesn't
+      exist, 400 if it has no `url`, 502 if `analyzeSeo` throws (homepage unreachable — message
+      says so, doesn't persist a zero score over a real prior result), else writes `seo_score` /
+      `seo_segment_scores` / `seo_report` / `seo_last_analyzed` (now) via `projectsTable().update()`
+      and returns `{ project }` re-fetched, same convention as `PATCH /api/projects/:id`.
