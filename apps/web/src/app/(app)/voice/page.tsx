@@ -21,6 +21,7 @@ import { useAgents } from "@/hooks/useAgents";
 import { useCommandPoll } from "@/hooks/useCommandPoll";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { api } from "@/lib/api-client";
+import { playSynthesizedSpeech } from "@/lib/tts-client";
 
 const QUICK_COMMANDS = ["Give me a status report", "What's blocking you?", "Assign a new task"];
 
@@ -43,22 +44,20 @@ interface LogEntry {
   at: string;
 }
 
-/**
- * Applies the agent's configured `voice_uri` (if any) to the utterance. `voice_uri` is stored per
- * agent, but the actual `SpeechSynthesisVoice` objects only exist in the current browser's
- * runtime voice list — if the agent was configured on a different machine/browser where that
- * voiceURI doesn't exist, this falls back silently to the browser default rather than erroring.
- */
-function speak(text: string, agent?: Agent) {
+/** Browser-native fallback used only when Google TTS fails (no API key configured yet, quota, network) — no attempt to match `agent.voice_uri`, since that's now a Google voice id, not a `SpeechSynthesisVoice.voiceURI`. Just the platform default voice, so a reply is audible instead of silent. */
+function speakWithBrowserFallback(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  if (agent?.voice_uri) {
-    const voice = window.speechSynthesis.getVoices().find((v) => v.voiceURI === agent.voice_uri);
-    if (voice) {
-      utterance.voice = voice;
-    }
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+/** Synthesizes and plays the agent's reply via Google Cloud TTS, using its configured `voice_uri` (a Google voice id) if set. Fire-and-forget from the caller — falls back to the browser's built-in (robotic) voice on any failure, e.g. `GOOGLE_TTS_API_KEY` unset, so a reply is never silent. */
+async function speak(text: string, agent?: Agent) {
+  try {
+    await playSynthesizedSpeech(text, agent?.voice_uri);
+  } catch (error) {
+    console.error("Google TTS failed, falling back to browser voice", error);
+    speakWithBrowserFallback(text);
   }
-  window.speechSynthesis.speak(utterance);
 }
 
 function VoiceConsole() {
@@ -93,7 +92,7 @@ function VoiceConsole() {
       if (outcome.kind === "done") {
         const replyText = outcome.command.result ?? "";
         setLog((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: replyText, at: new Date().toISOString() }]);
-        speak(replyText, selectedAgent);
+        void speak(replyText, selectedAgent);
       } else if (outcome.kind === "failed") {
         const failureText = outcome.command.result ?? "The agent failed to complete this command.";
         setLog((prev) => [...prev, { id: crypto.randomUUID(), role: "system", text: failureText, at: new Date().toISOString() }]);

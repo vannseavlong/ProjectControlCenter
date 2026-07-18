@@ -16,3 +16,4 @@ export function requireEnv(name: string): string {
 
 export const getRenderApiKey = (): string => requireEnv("RENDER_API_KEY");
 export const getVercelApiToken = (): string => requireEnv("VERCEL_API_TOKEN");
+export const getGoogleTtsApiKey = (): string => requireEnv("GOOGLE_TTS_API_KEY");
