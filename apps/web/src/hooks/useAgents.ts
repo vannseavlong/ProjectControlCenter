@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AgentStatus } from "@pcc/types";
 import { toast } from "@pcc/ui";
-import { api, type CreateAgentInput, type UpdateAgentVoiceInput } from "@/lib/api-client";
+import { api, type CreateAgentInput, type UpdateAgentInput, type UpdateAgentVoiceInput } from "@/lib/api-client";
 
 const AGENTS_KEY = ["agents"] as const;
 
@@ -43,6 +43,18 @@ export function useUpdateAgentVoice() {
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: AGENTS_KEY });
       toast.success(`${agent.agent_name}'s voice updated`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useUpdateAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string } & UpdateAgentInput) => api.agents.update(id, input),
+    onSuccess: (agent) => {
+      queryClient.invalidateQueries({ queryKey: AGENTS_KEY });
+      toast.success(`${agent.agent_name} updated`);
     },
     onError: (error: Error) => toast.error(error.message),
   });

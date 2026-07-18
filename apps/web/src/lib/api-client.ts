@@ -51,6 +51,14 @@ export interface UpdateAgentVoiceInput {
   voice_name?: string;
 }
 
+/** Staffing-edit partial update — only fields present are applied, same "present in body" semantics as `PATCH /api/agents/:id`. */
+export interface UpdateAgentInput {
+  agent_name?: string;
+  assigned_project_id?: string;
+  local_project_path?: string;
+  brief?: string;
+}
+
 export interface SaveSettingInput {
   key: string;
   value?: string;
@@ -115,6 +123,11 @@ export const api = {
       ),
     /** Voice-only partial update — omitted fields are left untouched, same "present in body" semantics as `PATCH /api/agents/:id`. */
     updateVoice: (id: string, input: UpdateAgentVoiceInput) =>
+      fetchJson<{ agent: Agent }>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
+        (r) => r.agent,
+      ),
+    /** Staffing edit (name/project/path/brief) — omitted fields are left untouched. */
+    update: (id: string, input: UpdateAgentInput) =>
       fetchJson<{ agent: Agent }>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
         (r) => r.agent,
       ),

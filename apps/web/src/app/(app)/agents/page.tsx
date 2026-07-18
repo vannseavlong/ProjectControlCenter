@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, MoreVertical, Pause, Play, Trash2, Users, Volume2 } from "lucide-react";
+import { Flame, MoreVertical, Pause, Pencil, Play, Trash2, Users, Volume2 } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -22,6 +22,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { CreateAgentDialog } from "@/components/CreateAgentDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChangeVoiceDialog } from "@/components/ChangeVoiceDialog";
+import { EditAgentDialog } from "@/components/EditAgentDialog";
 
 const STATUS_BADGE: Record<AgentStatus, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -61,6 +62,14 @@ function AgentCard({ agent, projectName }: { agent: Agent; projectName: string }
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <EditAgentDialog
+              agent={agent}
+              trigger={
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Pencil className="size-4" /> Edit
+                </DropdownMenuItem>
+              }
+            />
             {agent.status === "active" ? (
               <DropdownMenuItem onSelect={() => updateStatus.mutate({ id: agent._id, status: "paused" })}>
                 <Pause className="size-4" /> Pause

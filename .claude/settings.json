@@ -40,7 +40,9 @@
       "Bash(claude -p \"Reply with exactly the word: PING2\" --output-format json --permission-mode bypassPermissions --resume 00000000-0000-0000-0000-000000000000)",
       "Bash(echo \"EXIT_CODE=$?\")",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(ps -p 39676 -o pid,etime,command)"
+      "Bash(ps -p 39676 -o pid,etime,command)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/agents)",
+      "Bash(kill %1)"
     ],
     "additionalDirectories": [
       "/Users/suntel/personal/ProjectControlCenter/apps/web/src/app/api/commands"

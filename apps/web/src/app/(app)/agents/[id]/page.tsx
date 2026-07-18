@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Mic } from "lucide-react";
+import { ArrowLeft, Mic, Pencil } from "lucide-react";
 import { Avatar, AvatarFallback, Badge, Button, Card, EmptyState, Skeleton } from "@pcc/ui";
 import type { AgentStatus } from "@pcc/types";
 import { useAgents } from "@/hooks/useAgents";
 import { useProjects } from "@/hooks/useProjects";
 import { formatRelativeTime } from "@/lib/format";
+import { EditAgentDialog } from "@/components/EditAgentDialog";
 
 const STATUS_BADGE: Record<AgentStatus, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -57,6 +58,14 @@ export default function AgentDetailPage() {
             </div>
             <div className="flex items-center gap-3">
               <Badge variant={STATUS_BADGE[agent.status]}>{agent.status}</Badge>
+              <EditAgentDialog
+                agent={agent}
+                trigger={
+                  <Button variant="secondary">
+                    <Pencil className="size-4" /> Edit
+                  </Button>
+                }
+              />
               <Button asChild>
                 <Link href={`/voice?agent=${agent._id}`}>
                   <Mic className="size-4" /> Talk to this agent

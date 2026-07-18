@@ -107,12 +107,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  * Hard delete. Two decisions worth documenting since they diverge from the (simpler)
  * `DELETE /api/agents/:id` this route otherwise mirrors:
  *  - `agents.assigned_project_id` is a `.ref("projects._id")` (required) column — an active or
- *    paused agent still assigned to this project would be left pointing at a dead project_id
- *    with no way to fix it via the API (agent PATCH only supports status transitions, not
- *    reassignment). Rather than silently orphaning that reference, block the delete with 409
- *    unless every assigned agent has already been fired. Fired agents are inert (no more polling/
- *    execution against the project) so their stale reference is harmless clutter, same as
- *    ping_logs below — deleting the project doesn't un-fire anything.
+ *    paused agent still assigned to this project would be left pointing at a dead project_id.
+ *    `PATCH /api/agents/:id` does support reassigning an agent to a different project, but that's
+ *    a manual per-agent fix, not something this cascade should do implicitly. Rather than
+ *    silently orphaning that reference, block the delete with 409 unless every assigned agent has
+ *    already been fired. Fired agents are inert (no more polling/execution against the project)
+ *    so their stale reference is harmless clutter, same as ping_logs below — deleting the project
+ *    doesn't un-fire anything.
  *  - `ping_logs.project_id` is also a `.ref("projects._id")` but ping_logs are pure history (the
  *    Dashboard/health views only ever read them, never act on them), so an orphaned row is inert
  *    clutter, not a broken reference someone needs to act on. Cascade-deleting them keeps the
