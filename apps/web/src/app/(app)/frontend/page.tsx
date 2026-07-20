@@ -162,7 +162,7 @@ function DeployStatusBadge({
 }
 
 function SiteCard({ project }: { project: Project }) {
-  const { data } = useDeployStatus(project._id, Boolean(project.url));
+  const { data } = useDeployStatus(project._id, Boolean(project.vercel_project_id || project.url));
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
@@ -244,7 +244,7 @@ function SiteCard({ project }: { project: Project }) {
 /** Compact list-view counterpart to `SiteCard` — mirrors `/backend`'s `Table` styling (name, status,
  * last-deployed, actions). Thumbnails intentionally don't show here, per the task brief. */
 function SiteListRow({ project }: { project: Project }) {
-  const { data } = useDeployStatus(project._id, Boolean(project.url));
+  const { data } = useDeployStatus(project._id, Boolean(project.vercel_project_id || project.url));
 
   return (
     <TableRow>

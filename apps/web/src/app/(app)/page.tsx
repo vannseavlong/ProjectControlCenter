@@ -78,7 +78,7 @@ export default function DashboardPage() {
   // updated for them — Vercel's deployment readyState (or, for non-Vercel hosting, a bare-URL
   // reachability ping) is the only real live signal, see lib/format.ts's projectLiveTone.
   const frontendProjects = projects?.filter((p) => p.type === "frontend") ?? [];
-  const frontendProjectsWithUrl = frontendProjects.filter((p) => p.url);
+  const frontendProjectsWithUrl = frontendProjects.filter((p) => p.vercel_project_id || p.url);
   const deployStatuses = useDeployStatuses(frontendProjectsWithUrl.map((p) => p._id));
   const frontendLive = deployStatuses.filter(
     (q) => projectLiveTone(q.data?.deployment, q.data?.reachability) === "up",
@@ -106,7 +106,7 @@ export default function DashboardPage() {
   const liveTones = [
     ...backendProjects.map((p) => p.status),
     ...frontendProjects.map((p) => {
-      if (!p.url) return "unknown" as const;
+      if (!p.vercel_project_id && !p.url) return "unknown" as const;
       const q = deployStatusByProjectId.get(p._id);
       return projectLiveTone(q?.data?.deployment, q?.data?.reachability);
     }),
