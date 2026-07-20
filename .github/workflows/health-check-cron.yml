@@ -15,7 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hit /api/cron/health-check
+        # --fail alone swallows the response body on a non-2xx, which is exactly what you need to
+        # see to tell a CRON_SECRET mismatch (401) apart from a stale/wrong PORTAL_URL (404/DNS
+        # failure/timeout) — write the body out first, then --fail so the step still goes red.
         run: |
-          curl --fail --show-error --silent \
+          http_code=$(curl --show-error --silent --output response.txt --write-out "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.PORTAL_URL }}/api/cron/health-check"
+            "${{ secrets.PORTAL_URL }}/api/cron/health-check")
+          echo "HTTP $http_code"
+          cat response.txt
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            exit 1
+          fi
