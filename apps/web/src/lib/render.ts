@@ -63,25 +63,33 @@ async function fetchOnce(url: string, timeoutMs: number): Promise<FetchResult> {
   }
 }
 
+/** Dedicated health-route paths to try, in order, before falling back to the bare `baseUrl`. */
+const HEALTH_PATHS = ["/health", "/api/health"];
+
 /**
- * Pings a deployed service's own `/health` route (not the Render management API). Free-tier
+ * Pings a deployed service's own health route (not the Render management API). Free-tier
  * Render services cold-start on any inbound request, so this same call doubles as the wake
  * trigger — there's no separate "wake" endpoint on Render's API.
  *
- * Not every tracked service exposes `/health` — if that request completes but isn't 2xx (e.g. a
- * plain 404, meaning the route just doesn't exist), fall back to the bare `baseUrl` before
- * concluding the service is down, since a service can be genuinely up and serving traffic without
- * a dedicated health route. Skip the fallback on a timeout, though: that already means the
- * service is slow/asleep, and retrying the same cold service against a different path would just
- * double the wait without telling us anything new.
+ * Not every tracked service exposes a health route at the same path — some projects use `/health`,
+ * others `/api/health` — so both are tried in turn. If none of them return 2xx (e.g. a plain 404,
+ * meaning the route just doesn't exist), fall back to the bare `baseUrl` before concluding the
+ * service is down, since a service can be genuinely up and serving traffic without a dedicated
+ * health route. Skip further attempts on a timeout, though: that already means the service is
+ * slow/asleep, and retrying the same cold service against a different path would just double the
+ * wait without telling us anything new.
  */
 export async function pingHealth(baseUrl: string, timeoutMs = 10_000): Promise<PingResult> {
-  const primary = await fetchOnce(new URL("/health", baseUrl).toString(), timeoutMs);
-  const healthEndpointDetected = primary.timedOut ? null : primary.ok;
-  if (primary.ok || primary.timedOut) return { ...primary, healthEndpointDetected };
+  let last: FetchResult | null = null;
+  for (const path of HEALTH_PATHS) {
+    const result = await fetchOnce(new URL(path, baseUrl).toString(), timeoutMs);
+    if (result.ok) return { ...result, healthEndpointDetected: true };
+    if (result.timedOut) return { ...result, healthEndpointDetected: null };
+    last = result;
+  }
 
   const fallback = await fetchOnce(baseUrl, timeoutMs);
-  return { ...(fallback.ok ? fallback : primary), healthEndpointDetected };
+  return { ...(fallback.ok ? fallback : last!), healthEndpointDetected: false };
 }
 
 export interface WakeResult extends PingResult {
