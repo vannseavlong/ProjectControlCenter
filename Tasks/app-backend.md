@@ -149,7 +149,18 @@ scores. Means no real performance/render metric — segments are static-HTML/heu
           `extractMetaContent`-style matching from `og-image.ts`), `twitter:card`
         - **technical**: HTTPS, robots.txt reachable & not `Disallow: /` for `User-agent: *`,
           sitemap.xml reachable (direct fetch, or referenced via a `Sitemap:` line in robots.txt),
-          canonical `<link rel="canonical">`, viewport `<meta name="viewport">`
+          canonical `<link rel="canonical">`, viewport `<meta name="viewport">`, favicon `<link
+          rel="icon">`, web app manifest `<link rel="manifest">` (warn, not fail, if missing —
+          optional), JSON-LD structured data presence (warn if missing — recommended, not
+          required), security response headers (HSTS/X-Content-Type-Options/CSP — pass if all
+          three present, warn if some, fail if none), and modern `<img>` format share (WebP/AVIF
+          vs. legacy JPEG/PNG/GIF — warn, never fail, since legacy formats aren't an error, just a
+          missed optimization). Added in a follow-up pass after the original §5 build — see
+          `Tasks/agent-chat.md`'s `2026-07-20 07:15` log entry for the exact new check `id`s and
+          why Core Web Vitals / mobile rendering / broken-link crawling / Search Console
+          verification were explicitly ruled out as further additions (they need a real browser or
+          external OAuth integration, contradicting the zero-dependency/single-fetch design this
+          analyzer already committed to).
         - **accessibility**: `<img>` alt-text coverage (tiered: ≥90% pass, ≥50% warn, else fail),
           `lang` attribute on `<html>`, heading-level jump sanity (extract `<h1>`–`<h6>` in document
           order, flag a skipped level)

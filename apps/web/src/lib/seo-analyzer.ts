@@ -275,13 +275,103 @@ function checkTechnical(
   return results;
 }
 
+/** Extracts every `<img ...>` opening tag verbatim — shared by the accessibility and modern-image-format checks. */
+function extractImgTags(html: string): string[] {
+  return html.match(/<img\b[^>]*>/gi) ?? [];
+}
+
+const MODERN_IMAGE_EXTENSIONS = new Set(["webp", "avif"]);
+const LEGACY_RASTER_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "bmp"]);
+
+/** Share of `<img>` tags using a modern (WebP/AVIF) format vs. legacy raster formats — vector/unknown extensions are ignored, not counted against the site. */
+function checkModernImageFormats(imgTags: string[]): SeoCheckResult {
+  let modernCount = 0;
+  let legacyCount = 0;
+  for (const tag of imgTags) {
+    const src = tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i)?.[1];
+    const ext = src?.split(/[?#]/)[0]?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+    if (!ext) continue;
+    if (MODERN_IMAGE_EXTENSIONS.has(ext)) modernCount++;
+    else if (LEGACY_RASTER_EXTENSIONS.has(ext)) legacyCount++;
+  }
+  const total = modernCount + legacyCount;
+  if (total === 0) {
+    return makeCheck(
+      "technical",
+      "modern-image-formats",
+      "Modern image formats",
+      "pass",
+      "No JPEG/PNG/GIF/WebP/AVIF <img> tags to evaluate.",
+    );
+  }
+  const share = modernCount / total;
+  const detail = `${modernCount}/${total} raster images use a modern format (WebP/AVIF).`;
+  // Never "fail" here — using JPEG/PNG isn't an error, just a missed optimization, same soft-signal
+  // treatment as the canonical-link and heading-hierarchy checks above.
+  return makeCheck("technical", "modern-image-formats", "Modern image formats", share >= 0.5 ? "pass" : "warn", detail);
+}
+
+/** Presence of `<link rel="icon">` (or `shortcut icon`/`apple-touch-icon`, all matched via the shared `icon` word boundary) and `<link rel="manifest">`. */
+function checkFaviconAndManifest(html: string): SeoCheckResult[] {
+  const hasIcon = /<link[^>]*rel=["'][^"']*\bicon\b[^"']*["'][^>]*>/i.test(html);
+  const hasManifest = /<link[^>]*rel=["']manifest["'][^>]*>/i.test(html);
+  return [
+    makeCheck(
+      "technical",
+      "favicon",
+      "Favicon",
+      hasIcon ? "pass" : "fail",
+      hasIcon ? "Found a favicon <link>." : 'No favicon <link rel="icon"> found.',
+    ),
+    makeCheck(
+      "technical",
+      "web-manifest",
+      "Web app manifest",
+      hasManifest ? "pass" : "warn",
+      hasManifest
+        ? 'Found <link rel="manifest">.'
+        : 'No <link rel="manifest"> found — optional, but improves mobile/PWA presentation.',
+    ),
+  ];
+}
+
+/** Presence of a JSON-LD structured-data block — doesn't validate the schema itself, just that one exists. */
+function checkStructuredData(html: string): SeoCheckResult {
+  const hasJsonLd = /<script[^>]*type=["']application\/ld\+json["'][^>]*>/i.test(html);
+  return makeCheck(
+    "technical",
+    "structured-data",
+    "Structured data (JSON-LD)",
+    hasJsonLd ? "pass" : "warn",
+    hasJsonLd
+      ? "Found a JSON-LD <script> block."
+      : "No JSON-LD structured data found — recommended for rich search results.",
+  );
+}
+
+/** Presence of the HSTS / X-Content-Type-Options / CSP response headers on the homepage fetch. */
+function checkSecurityHeaders(headers: Headers): SeoCheckResult {
+  const wanted: [string, string][] = [
+    ["strict-transport-security", "HSTS"],
+    ["x-content-type-options", "X-Content-Type-Options"],
+    ["content-security-policy", "CSP"],
+  ];
+  const present = wanted.filter(([header]) => headers.get(header) !== null).map(([, label]) => label);
+  const missing = wanted.filter(([header]) => headers.get(header) === null).map(([, label]) => label);
+  const status: SeoCheckStatus = present.length === wanted.length ? "pass" : present.length > 0 ? "warn" : "fail";
+  const detail =
+    present.length > 0
+      ? `Present: ${present.join(", ")}.${missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : ""}`
+      : `Missing: ${missing.join(", ")}.`;
+  return makeCheck("technical", "security-headers", "Security headers", status, detail);
+}
+
 // ---------------------------------------------------------------------------------------------
 // accessibility segment: img alt coverage, html lang, heading-level jump sanity
 // ---------------------------------------------------------------------------------------------
-function checkAccessibility(html: string): SeoCheckResult[] {
+function checkAccessibility(html: string, imgTags: string[]): SeoCheckResult[] {
   const results: SeoCheckResult[] = [];
 
-  const imgTags = html.match(/<img\b[^>]*>/gi) ?? [];
   // An image "counts" as covered if it has an `alt` attribute at all, including `alt=""` —
   // an empty alt is the correct, deliberate pattern for decorative images, not a violation.
   const coveredCount = imgTags.filter((tag) => /\balt\s*=\s*["'][^"']*["']/i.test(tag)).length;
@@ -365,6 +455,7 @@ export async function analyzeSeo(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let html: string;
+  let homepageHeaders: Headers;
   try {
     const res = await fetch(baseUrl, {
       signal: controller.signal,
@@ -374,6 +465,7 @@ export async function analyzeSeo(
     if (!res.ok) {
       throw new Error(`Homepage responded with HTTP ${res.status}`);
     }
+    homepageHeaders = res.headers;
     html = await res.text();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -387,11 +479,17 @@ export async function analyzeSeo(
     fetchText(new URL("/sitemap.xml", homepageUrl).toString()),
   ]);
 
+  const imgTags = extractImgTags(html);
+
   const report: SeoCheckResult[] = [
     ...checkMeta(html),
     ...checkSocial(html),
     ...checkTechnical(html, homepageUrl, robots, sitemapDirect),
-    ...checkAccessibility(html),
+    ...checkFaviconAndManifest(html),
+    checkStructuredData(html),
+    checkSecurityHeaders(homepageHeaders),
+    checkModernImageFormats(imgTags),
+    ...checkAccessibility(html, imgTags),
   ];
 
   const segmentScores = computeSegmentScores(report);

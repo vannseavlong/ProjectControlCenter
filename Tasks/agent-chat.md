@@ -23,7 +23,7 @@ guessing or silently blocking.
 | Agent | Current focus | Updated |
 |---|---|---|
 | frontend | Shipped `app-frontend.md` §3a — SEO analysis UI (`/frontend/[id]` detail page, SEO badges on the grid card/list row, both now clickable through). Built against backend's `2026-07-20 05:10` contract. See the `2026-07-20 06:40` log entry below for what got built, a live-API discrepancy I hit and worked around (unset `seo_score` reads back as JSON `null`, not `undefined`, despite the documented contract), and what got tested in-browser vs. just type-checked. `app-frontend.md` §3a fully checked now — nothing left on my list except `/api/agents/:id/message`, still blocked on agent-bridge/backend, not mine to unblock. | 2026-07-20 06:40 |
-| backend | Shipped `Tasks/app-backend.md` §5 SEO analysis end to end — schema, `src/lib/seo-analyzer.ts`, `POST /api/projects/:id/analyze-seo`. `db:sync` ran clean against the live Sheet. This is the contract `app-frontend.md` §3a is waiting on — see the `2026-07-20 05:10` log entry below for the full field/route contract. Nothing else left on my list. | 2026-07-20 05:10 |
+| backend | Follow-up pass on `Tasks/app-backend.md` §5 — added 5 more heuristic checks to `src/lib/seo-analyzer.ts`'s technical segment (favicon, web manifest, JSON-LD structured data, security headers, modern image formats) per user request, after user feedback that the original check list was too shallow vs. real-world SEO tooling. See the `2026-07-20 07:15` log entry below for the new check `id`s and — importantly — which requested checks (Core Web Vitals, mobile rendering, broken-link crawling, Search Console/GA verification) were explicitly _not_ added and why. No schema/type/route changes, so this doesn't reopen anything for `app-frontend.md` §3a — its generic "render whatever's in `report`" UI picks the new checks up automatically. Nothing else left on my list. | 2026-07-20 07:15 |
 | agent-bridge | Phase 4 daemon build is done — every box in `Tasks/agent-bridge.md` checked (poll/claim/execute/recovery loop, graceful shutdown, heartbeat, the Option A/B decision). This round's pass was docs-only: rewrote the stale README, documented the `launchd` day-to-day-running decision and the `agent_bridge_last_seen` heartbeat contract, added the promised "Known limitations" section. See `11:20` log entry. Nothing left on my list — blocked only on the `apps/web` side (message route + bridge-online UI indicator), which is backend/frontend's lane, not mine. | 2026-07-17 11:20 |
 
 ## Open Requests
@@ -1045,3 +1045,52 @@ Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit
     `undefined` fix. `pnpm --filter @pcc/web type-check`, `lint` (0 errors, same 1 pre-existing
     `<img>` warning already on record), and `build` all green, run again after the fixes above.
   - `Tasks/app-frontend.md` §3a fully checked now.
+- `2026-07-20 07:15` — backend: follow-up pass on `Tasks/app-backend.md` §5, prompted by direct
+  user feedback that the original check list only covered "surface-level HTML tags" and missed
+  what modern SEO tooling actually checks (Core Web Vitals, structured data, security headers,
+  favicon/manifest, image formats, broken links, Search Console/GA verification, etc.). Triaged
+  that list against this analyzer's existing zero-dependency/single-homepage-fetch design instead
+  of rebuilding it wholesale:
+  - **Added** 5 new `technical`-segment checks in `apps/web/src/lib/seo-analyzer.ts` — all cheap
+    because they only need data already being fetched (the homepage HTML/response headers), no new
+    network calls beyond what `analyzeSeo` already made:
+    - `favicon` — `<link rel="icon">` (also matches `shortcut icon`/`apple-touch-icon` via a
+      `\bicon\b` word-boundary match) present/absent, `pass`/`fail`.
+    - `web-manifest` — `<link rel="manifest">` present/absent, `pass`/`warn` (optional, not
+      required, so missing doesn't fail).
+    - `structured-data` — any `<script type="application/ld+json">` block present/absent,
+      `pass`/`warn` (recommended, not required — this only checks presence, not that the JSON-LD
+      actually validates against a schema.org type).
+    - `security-headers` — presence of `Strict-Transport-Security`, `X-Content-Type-Options`,
+      `Content-Security-Policy` on the homepage response (had to start capturing `res.headers` in
+      `analyzeSeo`, previously discarded). `pass` if all 3 present, `warn` if 1-2, `fail` if 0.
+    - `modern-image-formats` — share of `<img src>` file extensions that are `webp`/`avif` vs.
+      legacy `jpg`/`jpeg`/`png`/`gif`/`bmp` (vector/unrecognized extensions ignored, not counted
+      either way). `pass` if ≥50% modern or zero raster images to evaluate, `warn` otherwise —
+      never `fail`, since using JPEG/PNG isn't an error, just a missed optimization (same
+      soft-signal treatment already used for `canonical`/`heading-hierarchy`).
+    Refactored `extractImgTags()` out of the accessibility check so `checkAccessibility` and
+    `checkModernImageFormats` share one regex pass over `<img>` tags instead of each re-matching.
+    No schema/type change — `SeoCheckResult`'s `id` was already a free-form `string`, so these are
+    just new values flowing through the existing shape, and `Tasks/app-frontend.md` §3a's UI
+    already renders `report` generically grouped by segment, so the new checks show up with zero
+    frontend changes needed. Confirmed this live: reran `analyzeSeo()` via a throwaway
+    `tsx`-executed script (deleted after) against `https://vercel.com` (all 5 new checks passed,
+    including `12/12` raster images already on modern formats) and `https://example.com` (correctly
+    `fail`ed robots/sitemap/security-headers, `warn`ed manifest/structured-data/canonical, and
+    `pass`ed favicon since example.com actually does ship `<link rel="icon" href="data:,">` — a
+    real, if minimal, favicon link, so that wasn't a bug).
+  - **Deliberately did not add**, and flagging why so nobody re-proposes these without re-deciding
+    the tradeoff: Core Web Vitals (LCP/CLS/INP) and mobile tap-target/layout checks need a real
+    rendering engine (Lighthouse or a headless browser) — exactly the "avoid an external
+    paid/keyed service, no Puppeteer" precedent this analyzer and the OG-image scraper both already
+    committed to, not something addressable with more regex checks. Broken-link/orphan-page
+    detection needs crawling the whole site, not a single on-demand homepage scan. Google Search
+    Console / GA4 verification needs OAuth into the user's own Google accounts — a different
+    integration surface entirely, out of scope for a heuristic analyzer. Keyword/search-intent
+    matching needs real NLP, not string checks. If any of these get prioritized later they're a new
+    piece of infrastructure, not a follow-up check.
+  - `pnpm --filter @pcc/web type-check`, `lint` (0 errors, same 1 pre-existing `<img>` warning on
+    record), and `build` all green. `Tasks/app-backend.md` §5's `src/lib/seo-analyzer.ts` bullet
+    updated in place to list the new checks rather than adding a new bullet, since it's the same
+    box, just extended.
