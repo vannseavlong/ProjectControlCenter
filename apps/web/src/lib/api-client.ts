@@ -36,6 +36,13 @@ export interface DeployStatusResult {
   reachability: ReachabilityResult | null;
 }
 
+/** Wire shape returned by `POST /api/projects/wake-all` — one entry per Render-backed backend project with a url. */
+export interface WakeAllResult {
+  total: number;
+  woken: number;
+  results: Array<{ project_id: string; project_name: string; wake: WakeResult }>;
+}
+
 export interface CreateAgentInput {
   agent_name: string;
   assigned_project_id: string;
@@ -92,6 +99,8 @@ export const api = {
       ),
     health: (id: string) => fetchJson<{ project: Project; ping: PingResult }>(`/api/projects/${id}/health`),
     wake: (id: string) => fetchJson<{ project: Project; wake: WakeResult }>(`/api/projects/${id}/wake`, { method: "POST" }),
+    /** Wakes every Render-backed backend project in one call — see `POST /api/projects/wake-all`. */
+    wakeAll: () => fetchJson<WakeAllResult>("/api/projects/wake-all", { method: "POST" }),
     /**
      * `reachability` is only populated as a fallback for non-Vercel-hosted projects (or a Vercel
      * project missing its `vercel_project_id`) — see `GET /api/projects/:id/deploy-status`. Both

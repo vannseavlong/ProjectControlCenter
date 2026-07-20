@@ -1,6 +1,6 @@
-import { pingLogsTable, projectsTable } from "@pcc/db";
-import type { PingStatus, ProjectStatus } from "@pcc/types";
+import { projectsTable } from "@pcc/db";
 import { apiError, apiOk, withApiErrorHandling } from "@/lib/api-response";
+import { recordPingResult } from "@/lib/ping-record";
 import { wakeService } from "@/lib/render";
 
 /** Give the poll loop in wakeService room to run past the default 10s serverless limit (Vercel Pro+; ignored on Hobby). */
@@ -21,28 +21,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     }
 
     const result = await wakeService(project.url);
-    const pingStatus: PingStatus = result.ok ? "success" : result.timedOut ? "timeout" : "error";
-    const projectStatus: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
-    const last_checked = new Date().toISOString();
+    const { project: updatedProject } = await recordPingResult(project, result);
 
-    // See apps/web/src/app/api/projects/[id]/health/route.ts for why this is conditional — a
-    // timed-out final attempt (healthEndpointDetected === null) leaves has_health_endpoint alone.
-    const healthEndpointUpdate =
-      result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
-
-    await pingLogsTable().create({
-      project_id: project._id,
-      status: pingStatus,
-      response_time_ms: result.responseTimeMs,
-    });
-    await projectsTable().update({
-      where: { _id: project._id },
-      data: { status: projectStatus, last_checked, ...healthEndpointUpdate },
-    });
-
-    return apiOk({
-      project: { ...project, status: projectStatus, last_checked, ...healthEndpointUpdate },
-      wake: result,
-    });
+    return apiOk({ project: updatedProject, wake: result });
   });
 }

@@ -1,6 +1,7 @@
-import { pingLogsTable, projectsTable } from "@pcc/db";
-import type { PingStatus, Project, ProjectStatus } from "@pcc/types";
+import { projectsTable } from "@pcc/db";
+import type { Project, ProjectStatus } from "@pcc/types";
 import { apiError, apiOk, withApiErrorHandling } from "@/lib/api-response";
+import { recordPingResult } from "@/lib/ping-record";
 import { pingHealth } from "@/lib/render";
 
 /** Give the ping loop over every backend project room to run past the default 10s serverless limit (Vercel Pro+; ignored on Hobby). */
@@ -42,26 +43,7 @@ async function checkProject(project: Project): Promise<{ project_id: string; sta
   if (!project.url) return null;
 
   const result = await pingHealth(project.url);
-  const pingStatus: PingStatus = result.ok ? "success" : result.timedOut ? "timeout" : "error";
-  const status: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
-  const last_checked = new Date().toISOString();
-
-  // Opportunistically keeps has_health_endpoint accurate on every scheduled run, same rule as the
-  // manual health/wake routes — see apps/web/src/app/api/projects/[id]/health/route.ts. This is
-  // what makes the field self-correcting over time even if nobody ever revisits a given project:
-  // add a `/health` route later, and the next cron pass picks it up automatically.
-  const healthEndpointUpdate =
-    result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
-
-  await pingLogsTable().create({
-    project_id: project._id,
-    status: pingStatus,
-    response_time_ms: result.responseTimeMs,
-  });
-  await projectsTable().update({
-    where: { _id: project._id },
-    data: { status, last_checked, ...healthEndpointUpdate },
-  });
+  const { status } = await recordPingResult(project, result);
 
   return { project_id: project._id, status };
 }
