@@ -2,8 +2,12 @@ const FETCH_TIMEOUT_MS = 5_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-/** Matches `<meta ... property="og:image" ... content="..." ...>` regardless of attribute order. */
-function extractMetaContent(html: string, attrName: "property" | "name", attrValue: string): string | null {
+/**
+ * Matches `<meta ... property="og:image" ... content="..." ...>` regardless of attribute order.
+ * Exported for reuse by src/lib/seo-analyzer.ts (social/technical segment checks) — same
+ * no-HTML-parser convention, no reason to duplicate the two-ordering regex logic there.
+ */
+export function extractMetaContent(html: string, attrName: "property" | "name", attrValue: string): string | null {
   // Two orderings: `content` before the attribute, or after — attribute order in the wild varies.
   const contentThenAttr = new RegExp(
     `<meta[^>]*content=["']([^"']+)["'][^>]*${attrName}=["']${attrValue}["'][^>]*>`,

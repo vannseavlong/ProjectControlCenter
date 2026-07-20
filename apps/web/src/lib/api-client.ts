@@ -112,6 +112,14 @@ export const api = {
      */
     remove: (id: string) =>
       fetchJson<{ deleted: true; id: string; cascadedPingLogs: number }>(`/api/projects/${id}`, { method: "DELETE" }),
+    /**
+     * On-demand SEO scoring — Tasks/app-backend.md §5. No request body. Re-fetched, full `Project`
+     * returned on success (same convention as `update`); 400 if the project has no `url`, 502 if
+     * the homepage was unreachable (existing seo_* data left untouched in that case) — both surface
+     * `error` verbatim via the mutation's `onError`, see `useAnalyzeSeo`.
+     */
+    analyzeSeo: (id: string) =>
+      fetchJson<{ project: Project }>(`/api/projects/${id}/analyze-seo`, { method: "POST" }).then((r) => r.project),
   },
   agents: {
     list: () => fetchJson<{ agents: Agent[] }>("/api/agents").then((r) => r.agents),

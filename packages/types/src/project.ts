@@ -1,4 +1,5 @@
 import type { WithTimestamps } from "./common";
+import type { SeoCheckResult, SeoSegmentScores } from "./seo";
 
 export type ProjectType = "frontend" | "backend";
 export type ProjectPlatform = "vercel" | "render" | "other";
@@ -17,4 +18,10 @@ export interface Project extends WithTimestamps {
   last_checked?: string;
   notes?: string;
   has_health_endpoint?: boolean;
+  // On-demand SEO scoring (Tasks/app-backend.md §5) — all four unset until
+  // POST /api/projects/:id/analyze-seo has run at least once for this project.
+  seo_score?: number;
+  seo_segment_scores?: SeoSegmentScores;
+  seo_report?: SeoCheckResult[];
+  seo_last_analyzed?: string;
 }

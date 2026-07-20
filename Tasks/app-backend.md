@@ -129,7 +129,7 @@ segment. **User decision**: self-built zero-dependency heuristic analyzer, not t
 PageSpeed Insights API — same "avoid an external paid/keyed service" precedent as the OG-image
 thumbnail decision (`src/lib/og-image.ts`), even though PageSpeed would give real Lighthouse
 scores. Means no real performance/render metric — segments are static-HTML/heuristic checks only.
-- [ ] Schema (`packages/db/schemas/admin/projects.ts`) — add `seo_score: number()`,
+- [x] Schema (`packages/db/schemas/admin/projects.ts`) — add `seo_score: number()`,
       `seo_segment_scores: json()`, `seo_report: json()`, `seo_last_analyzed: date()`. Mirror onto
       `Project` in `packages/types/src/project.ts`, plus a new `packages/types/src/seo.ts` for
       `SeoSegmentKey` (`"meta" | "social" | "technical" | "accessibility"`), `SeoCheckStatus`
@@ -137,7 +137,7 @@ scores. Means no real performance/render metric — segments are static-HTML/heu
       `SeoSegmentScores` (`{ meta, social, technical, accessibility }`, each `number`) — exported
       from `packages/types/src/index.ts`. Run `pnpm --filter @pcc/db db:sync` after (existing
       table, new columns only — no new schema file, so no `registerSchemas([...])` change needed).
-- [ ] `src/lib/seo-analyzer.ts` — `analyzeSeo(baseUrl: string): Promise<{ score: number;
+- [x] `src/lib/seo-analyzer.ts` — `analyzeSeo(baseUrl: string): Promise<{ score: number;
       segmentScores: SeoSegmentScores; report: SeoCheckResult[] }>`. Fetches the homepage HTML
       (same `AbortController` timeout + browser `User-Agent` pattern as `og-image.ts`), plus
       best-effort `/robots.txt` and `/sitemap.xml` off the same origin. Four segments, each a set
@@ -158,7 +158,7 @@ scores. Means no real performance/render metric — segments are static-HTML/heu
       metric, document this in the file). Never throws for a robots/sitemap sub-fetch failure (just
       fails those specific checks) — only throws if the homepage fetch itself fails, so the route
       can distinguish "couldn't scan" from "scanned, scored low."
-- [ ] `POST /api/projects/:id/analyze-seo` (new
+- [x] `POST /api/projects/:id/analyze-seo` (new
       `apps/web/src/app/api/projects/[id]/analyze-seo/route.ts`) — 404 if the project doesn't
       exist, 400 if it has no `url`, 502 if `analyzeSeo` throws (homepage unreachable — message
       says so, doesn't persist a zero score over a real prior result), else writes `seo_score` /

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ExternalLink,
@@ -44,6 +45,7 @@ import { formatRelativeTime, platformLabel, projectLiveTone } from "@/lib/format
 import { PAGE_SIZE } from "@/lib/constants";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { SeoScoreBadge } from "@/components/SeoScoreBadge";
 
 const VIEW_STORAGE_KEY = "pcc:frontend-view-mode";
 
@@ -165,7 +167,10 @@ function SiteCard({ project }: { project: Project }) {
 
   return (
     <Card className="flex flex-col gap-3 p-0 overflow-hidden">
-      <div className="flex aspect-[1200/630] max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground">
+      <Link
+        href={`/frontend/${project._id}`}
+        className="flex aspect-[1200/630] max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground"
+      >
         {project.thumbnail_url && !imageFailed ? (
           // Plain <img>, not next/image: thumbnail URLs point at arbitrary external domains (each
           // site's own og:image), not viable with next/image's fixed remote hostname allowlist.
@@ -189,16 +194,17 @@ function SiteCard({ project }: { project: Project }) {
         ) : (
           <ImageOff className="size-6" aria-hidden />
         )}
-      </div>
+      </Link>
       <div className="space-y-2 px-4 pb-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-medium">{project.project_name}</span>
+        <Link href={`/frontend/${project._id}`} className="flex items-center justify-between gap-2">
+          <span className="truncate font-medium hover:text-primary">{project.project_name}</span>
           <StatusDot tone={projectLiveTone(data?.deployment, data?.reachability)} />
-        </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
           <span className="font-mono">{formatRelativeTime(data?.deployment?.createdAt ?? project.last_checked)}</span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Badge variant="outline">{platformLabel(project.platform)}</Badge>
+            <SeoScoreBadge score={project.seo_score} />
             <DeployStatusBadge deployment={data?.deployment} reachability={data?.reachability} />
           </div>
         </div>
@@ -244,7 +250,9 @@ function SiteListRow({ project }: { project: Project }) {
     <TableRow>
       <TableCell className="font-medium">
         <div className="flex flex-col gap-0.5">
-          <span>{project.project_name}</span>
+          <Link href={`/frontend/${project._id}`} className="hover:text-primary">
+            {project.project_name}
+          </Link>
           {project.url ? (
             <a href={project.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-primary">
               {project.url}
@@ -260,6 +268,9 @@ function SiteListRow({ project }: { project: Project }) {
           <StatusDot tone={projectLiveTone(data?.deployment, data?.reachability)} />
           <DeployStatusBadge deployment={data?.deployment} reachability={data?.reachability} />
         </div>
+      </TableCell>
+      <TableCell>
+        <SeoScoreBadge score={project.seo_score} />
       </TableCell>
       <TableCell className="font-mono text-xs text-muted-foreground">
         {formatRelativeTime(data?.deployment?.createdAt ?? project.last_checked)}
@@ -419,6 +430,7 @@ export default function FrontendSitesPage() {
                     <TableHead>Site</TableHead>
                     <TableHead>Platform</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>SEO</TableHead>
                     <TableHead>Last deployed</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>

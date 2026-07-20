@@ -87,6 +87,23 @@ export function projectLiveTone(
   return "unknown";
 }
 
+/**
+ * Maps a `Project.seo_score` (0–100, or unset for a never-analyzed project) to a `StatusDotTone`
+ * — reuses the same up/sleeping/down/unknown semantics as `projectLiveTone` rather than inventing
+ * a fifth color, per Tasks/app-frontend.md §3a. `== null` (not `=== undefined`): every optional
+ * `Project` column round-trips through `GET /api/projects` as JSON `null`, not an absent/undefined
+ * key (verified live — `repo_url`, `last_checked`, `has_health_endpoint` etc. all do this too),
+ * even though the TS type says `number | undefined` — same defensive convention already used by
+ * `formatRelativeTime`'s `if (!iso)` and `HealthEndpointBadge`'s explicit `=== true`/`=== false`
+ * checks elsewhere in this codebase.
+ */
+export function seoScoreTone(score: number | null | undefined): "up" | "down" | "sleeping" | "unknown" {
+  if (score == null) return "unknown";
+  if (score >= 90) return "up";
+  if (score >= 50) return "sleeping";
+  return "down";
+}
+
 export function platformLabel(platform: ProjectPlatform): string {
   switch (platform) {
     case "vercel":

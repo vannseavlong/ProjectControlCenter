@@ -1,4 +1,4 @@
-import { defineTable, string, date, boolean } from "longcelot-sheet-db";
+import { defineTable, string, date, boolean, number, json } from "longcelot-sheet-db";
 
 export default defineTable({
   name: "projects",
@@ -23,5 +23,13 @@ export default defineTable({
     // `status`/`last_checked`, which reflect the last actual ping result, and doesn't feed
     // into pingHealth's own /health-then-bare-url fallback logic.
     has_health_endpoint: boolean().default(true),
+    // On-demand SEO scoring (Tasks/app-backend.md §5) — populated by
+    // POST /api/projects/:id/analyze-seo, all four columns unset until the first run. Self-built
+    // zero-dependency heuristic analyzer (src/lib/seo-analyzer.ts), not the PageSpeed Insights
+    // API — same "avoid an external paid/keyed service" precedent as thumbnail_url/og-image.ts.
+    seo_score: number(),
+    seo_segment_scores: json(),
+    seo_report: json(),
+    seo_last_analyzed: date(),
   },
 });

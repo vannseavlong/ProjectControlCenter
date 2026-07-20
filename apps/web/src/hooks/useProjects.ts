@@ -62,6 +62,19 @@ export function useWakeProject() {
   });
 }
 
+/** Mirrors `useWakeProject` exactly — see `Tasks/app-frontend.md` §3a. */
+export function useAnalyzeSeo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.projects.analyzeSeo(id),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      toast.success(`${project.project_name} SEO score: ${project.seo_score}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 export function useCheckProjectHealth() {
   const queryClient = useQueryClient();
   return useMutation({
