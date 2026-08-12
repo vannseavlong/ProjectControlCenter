@@ -1,5 +1,6 @@
 import { projectsTable } from "@pcc/db";
 import { apiError, apiOk, withApiErrorHandling } from "@/lib/api-response";
+import { EnvValidationError } from "@/lib/env";
 import { getLatestDeployment } from "@/lib/vercel";
 import { pingUrl } from "@/lib/reachability";
 
@@ -25,8 +26,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
 
     if (project.platform === "vercel" && project.vercel_project_id) {
-      const deployment = await getLatestDeployment(project.vercel_project_id);
-      return apiOk({ deployment, reachability: null });
+      try {
+        const deployment = await getLatestDeployment(project.vercel_project_id);
+        return apiOk({ deployment, reachability: null });
+      } catch (err) {
+        // A misconfigured token is worth surfacing loudly — anything else (bad/stale project ID,
+        // a transient Vercel API error) falls through to the same bare-URL reachability check
+        // used for platform "other", rather than leaving the project stuck on "Unknown".
+        if (err instanceof EnvValidationError) throw err;
+      }
     }
 
     if (!project.url) {

@@ -1,6 +1,6 @@
-import { pingLogsTable, projectsTable } from "@pcc/db";
-import type { PingStatus, ProjectStatus } from "@pcc/types";
+import { projectsTable } from "@pcc/db";
 import { apiError, apiOk, withApiErrorHandling } from "@/lib/api-response";
+import { recordPingResult } from "@/lib/ping-record";
 import { pingHealth } from "@/lib/render";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -15,30 +15,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
 
     const result = await pingHealth(project.url);
-    const pingStatus: PingStatus = result.ok ? "success" : result.timedOut ? "timeout" : "error";
-    const projectStatus: ProjectStatus = result.ok ? "up" : result.timedOut ? "sleeping" : "down";
-    const last_checked = new Date().toISOString();
+    const { project: updatedProject } = await recordPingResult(project, result);
 
-    // A conclusive result (the /health route either answered or gave a real non-2xx response)
-    // opportunistically keeps has_health_endpoint accurate without the user setting it by hand —
-    // see apps/web/src/lib/render.ts's PingResult.healthEndpointDetected. A timeout (null) leaves
-    // it untouched, same "don't guess" rule used everywhere else this field gets set.
-    const healthEndpointUpdate =
-      result.healthEndpointDetected !== null ? { has_health_endpoint: result.healthEndpointDetected } : {};
-
-    await pingLogsTable().create({
-      project_id: project._id,
-      status: pingStatus,
-      response_time_ms: result.responseTimeMs,
-    });
-    await projectsTable().update({
-      where: { _id: project._id },
-      data: { status: projectStatus, last_checked, ...healthEndpointUpdate },
-    });
-
-    return apiOk({
-      project: { ...project, status: projectStatus, last_checked, ...healthEndpointUpdate },
-      ping: result,
-    });
+    return apiOk({ project: updatedProject, ping: result });
   });
 }

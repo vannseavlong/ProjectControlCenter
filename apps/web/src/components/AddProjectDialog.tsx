@@ -76,7 +76,9 @@ function ProjectForm({
   // pinned to Render — there's no non-Render backend hosting concept in this app, so no dropdown
   // for them.
   const [platform, setPlatform] = useState<ProjectPlatform>(editingProject?.platform ?? config.platform);
-  const [platformId, setPlatformId] = useState(editingProject?.[config.idField] ?? "");
+  const [platformId, setPlatformId] = useState(
+    (config.idField ? editingProject?.[config.idField] : undefined) ?? "",
+  );
   const [repoUrl, setRepoUrl] = useState(editingProject?.repo_url ?? "");
   const [notes, setNotes] = useState(editingProject?.notes ?? "");
   const [hasHealthEndpoint, setHasHealthEndpoint] = useState(editingProject?.has_health_endpoint ?? true);
@@ -97,7 +99,7 @@ function ProjectForm({
           url: url || undefined,
           repo_url: repoUrl || undefined,
           notes: notes || undefined,
-          [config.idField]: platformId || undefined,
+          ...(config.idField ? { [config.idField]: platformId || undefined } : {}),
           has_health_endpoint: hasHealthEndpoint,
         },
       });
@@ -109,7 +111,7 @@ function ProjectForm({
         url: url || undefined,
         repo_url: repoUrl || undefined,
         notes: notes || undefined,
-        [config.idField]: platformId || undefined,
+        ...(config.idField ? { [config.idField]: platformId || undefined } : {}),
         has_health_endpoint: hasHealthEndpoint,
       });
     }
@@ -146,10 +148,12 @@ function ProjectForm({
             </Select>
           </div>
         ) : null}
-        <div className="space-y-1.5">
-          <Label htmlFor="platform_id">{config.idLabel}</Label>
-          <Input id="platform_id" placeholder={config.idPlaceholder} value={platformId} onChange={(e) => setPlatformId(e.target.value)} />
-        </div>
+        {config.idField ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="platform_id">{config.idLabel}</Label>
+            <Input id="platform_id" placeholder={config.idPlaceholder} value={platformId} onChange={(e) => setPlatformId(e.target.value)} />
+          </div>
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="repo_url">Repo URL</Label>
           <Input id="repo_url" type="url" placeholder="https://github.com/…" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />

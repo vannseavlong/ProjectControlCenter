@@ -18,8 +18,11 @@ jobs:
         # --fail alone swallows the response body on a non-2xx, which is exactly what you need to
         # see to tell a CRON_SECRET mismatch (401) apart from a stale/wrong PORTAL_URL (404/DNS
         # failure/timeout) — write the body out first, then --fail so the step still goes red.
+        # --location follows the 308 Vercel issues when PORTAL_URL points at a non-canonical
+        # domain (e.g. the *.vercel.app URL when a custom domain is set primary) — without it
+        # curl reports the redirect's own status/empty body instead of ever reaching the route.
         run: |
-          http_code=$(curl --show-error --silent --output response.txt --write-out "%{http_code}" \
+          http_code=$(curl --show-error --silent --location --output response.txt --write-out "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.PORTAL_URL }}/api/cron/health-check")
           echo "HTTP $http_code"

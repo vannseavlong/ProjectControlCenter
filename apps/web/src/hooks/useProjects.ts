@@ -62,6 +62,24 @@ export function useWakeProject() {
   });
 }
 
+export function useWakeAllProjects() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.projects.wakeAll(),
+    onSuccess: ({ total, woken }) => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      if (total === 0) {
+        toast.error("No Render-backed backend services to wake");
+      } else if (woken === total) {
+        toast.success(`All ${total} service${total === 1 ? "" : "s"} are awake`);
+      } else {
+        toast.error(`${woken} of ${total} service${total === 1 ? "" : "s"} woke up in time`);
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 /** Mirrors `useWakeProject` exactly — see `Tasks/app-frontend.md` §3a. */
 export function useAnalyzeSeo() {
   const queryClient = useQueryClient();

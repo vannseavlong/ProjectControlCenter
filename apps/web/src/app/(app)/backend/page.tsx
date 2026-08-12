@@ -25,7 +25,7 @@ import {
   UptimeHistory,
 } from "@pcc/ui";
 import type { PingLog, Project } from "@pcc/types";
-import { useDeleteProject, useProjects, useWakeProject } from "@/hooks/useProjects";
+import { useDeleteProject, useProjects, useWakeAllProjects, useWakeProject } from "@/hooks/useProjects";
 import { usePingLogs } from "@/hooks/usePingLogs";
 import { formatRelativeTime, pingStatusToTone } from "@/lib/format";
 import { PAGE_SIZE } from "@/lib/constants";
@@ -133,6 +133,20 @@ function ProjectActionsMenu({ project }: { project: Project }) {
   );
 }
 
+function WakeAllButton({ wakeableCount }: { wakeableCount: number }) {
+  const wakeAllProjects = useWakeAllProjects();
+  return (
+    <Button
+      variant="secondary"
+      disabled={wakeAllProjects.isPending || wakeableCount === 0}
+      onClick={() => wakeAllProjects.mutate()}
+    >
+      <Zap className="size-4" />
+      {wakeAllProjects.isPending ? "Waking all…" : "Wake all"}
+    </Button>
+  );
+}
+
 export default function BackendServicesPage() {
   const { data: projects, isLoading } = useProjects();
   const { data: pingLogs } = usePingLogs();
@@ -140,6 +154,7 @@ export default function BackendServicesPage() {
   const [page, setPage] = useState(1);
 
   const services = (projects ?? []).filter((p) => p.type === "backend");
+  const wakeableCount = services.filter((p) => p.platform === "render" && Boolean(p.url)).length;
 
   const query = search.trim().toLowerCase();
   const filteredServices = query
@@ -159,7 +174,10 @@ export default function BackendServicesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Backend Services</h1>
-        <AddProjectDialog type="backend" />
+        <div className="flex items-center gap-2">
+          {services.length > 0 ? <WakeAllButton wakeableCount={wakeableCount} /> : null}
+          <AddProjectDialog type="backend" />
+        </div>
       </div>
 
       {services.length > 0 ? (
