@@ -46,7 +46,9 @@
       "Bash(xargs ls)",
       "Bash(xargs ls -la)",
       "Bash(find /Users/suntel/personal/ProjectControlCenter/node_modules/.pnpm/longcelot-sheet-db@0.1.39_@types+node@26.1.1/node_modules/longcelot-sheet-db -maxdepth 3 -type f -name *.d.ts)",
-      "Bash(mkdir -p /Users/suntel/personal/ProjectControlCenter/apps/web/src/app/api/projects/\\\\[id\\\\]/analyze-seo)"
+      "Bash(mkdir -p /Users/suntel/personal/ProjectControlCenter/apps/web/src/app/api/projects/\\\\[id\\\\]/analyze-seo)",
+      "Bash(curl -s -i https://pcclongcelot.vercel.app/api/agents)",
+      "Bash(vercel whoami *)"
     ],
     "additionalDirectories": [
       "/Users/suntel/personal/ProjectControlCenter/apps/web/src/app/api/commands",
