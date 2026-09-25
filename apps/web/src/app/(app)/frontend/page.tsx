@@ -63,8 +63,9 @@ import {
 import type { Project, ProjectPlatform } from "@pcc/types";
 import { useDeleteProject, useDeployStatus, useProjects, useReorderProjects } from "@/hooks/useProjects";
 import { formatRelativeTime, platformLabel, projectLiveTone } from "@/lib/format";
-import { PAGE_SIZE } from "@/lib/constants";
+import { usePageSize } from "@/hooks/usePageSize";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
+import { PageSizeSelect } from "@/components/PageSizeSelect";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SeoScoreBadge } from "@/components/SeoScoreBadge";
 
@@ -367,6 +368,7 @@ export default function FrontendSitesPage() {
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize("pcc:frontend-page-size");
   const reorderProjects = useReorderProjects();
   const sensors = useSensors(
     // 5px activation distance so a plain click on the handle (e.g. to focus it) isn't a drag.
@@ -398,11 +400,11 @@ export default function FrontendSitesPage() {
     });
   }, [sites, search, platformFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredSites.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredSites.length / pageSize));
   // Clamp rather than useEffect-and-resync: a search that shrinks the result set below the current
   // page number should just show the last valid page, no extra render/flash needed.
   const currentPage = Math.min(page, totalPages);
-  const pageSites = filteredSites.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageSites = filteredSites.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Drags happen within the visible (filtered, paginated) slice, but the move is applied to the
   // full frontend roster by index — so dropping A onto B's slot puts A exactly where B was in the
@@ -414,6 +416,11 @@ export default function FrontendSitesPage() {
     const to = ids.indexOf(String(over.id));
     if (from === -1 || to === -1) return;
     reorderProjects.mutate(arrayMove(ids, from, to));
+  }
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
   }
 
   function handleSearchChange(value: string) {
@@ -553,9 +560,12 @@ export default function FrontendSitesPage() {
 
           {filteredSites.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {filteredSites.length} site{filteredSites.length === 1 ? "" : "s"}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {filteredSites.length} site{filteredSites.length === 1 ? "" : "s"}
+                </p>
+                <PageSizeSelect value={pageSize} onChange={handlePageSizeChange} />
+              </div>
               <Pagination page={currentPage} totalPages={totalPages} onPageChange={setPage} />
             </div>
           ) : null}

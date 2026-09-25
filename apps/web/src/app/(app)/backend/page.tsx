@@ -26,11 +26,12 @@ import {
 } from "@pcc/ui";
 import type { PingLog, Project } from "@pcc/types";
 import { useDeleteProject, useProjects, useWakeAllProjects, useWakeProject } from "@/hooks/useProjects";
+import { usePageSize } from "@/hooks/usePageSize";
 import { usePingLogs } from "@/hooks/usePingLogs";
 import { formatRelativeTime, pingStatusToTone } from "@/lib/format";
-import { PAGE_SIZE } from "@/lib/constants";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PageSizeSelect } from "@/components/PageSizeSelect";
 
 /** Ping logs for one project, chronological (oldest first) — feeds both the row sparkline and the history section below. */
 function projectPingLogsAscending(pingLogs: PingLog[] | undefined, projectId: string): PingLog[] {
@@ -152,6 +153,7 @@ export default function BackendServicesPage() {
   const { data: pingLogs } = usePingLogs();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize("pcc:backend-page-size");
 
   const services = (projects ?? []).filter((p) => p.type === "backend");
   const wakeableCount = services.filter((p) => p.platform === "render" && Boolean(p.url)).length;
@@ -166,9 +168,9 @@ export default function BackendServicesPage() {
   // Derived, not stored back into state (avoids a setState-in-effect resync — see
   // AddProjectDialog's ProjectForm for why that pattern is rejected here) — clamps a stale page
   // number (e.g. after a search narrows the result set) down to the last valid page on render.
-  const totalPages = Math.max(1, Math.ceil(filteredServices.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredServices.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pagedServices = filteredServices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedServices = filteredServices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="space-y-4">
@@ -196,9 +198,18 @@ export default function BackendServicesPage() {
             />
           </div>
           {filteredServices.length > 0 ? (
-            <span className="text-xs text-muted-foreground">
-              {filteredServices.length} service{filteredServices.length === 1 ? "" : "s"}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {filteredServices.length} service{filteredServices.length === 1 ? "" : "s"}
+              </span>
+              <PageSizeSelect
+                value={pageSize}
+                onChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            </div>
           ) : null}
         </div>
       ) : null}
