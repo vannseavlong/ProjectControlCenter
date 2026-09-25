@@ -1,11 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   ExternalLink,
   GitFork,
   Globe,
+  GripVertical,
   ImageOff,
   LayoutGrid,
   List,
@@ -40,7 +61,7 @@ import {
   TableRow,
 } from "@pcc/ui";
 import type { Project, ProjectPlatform } from "@pcc/types";
-import { useDeleteProject, useProjects, useDeployStatus } from "@/hooks/useProjects";
+import { useDeleteProject, useDeployStatus, useProjects, useReorderProjects } from "@/hooks/useProjects";
 import { formatRelativeTime, platformLabel, projectLiveTone } from "@/lib/format";
 import { PAGE_SIZE } from "@/lib/constants";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
@@ -161,83 +182,135 @@ function DeployStatusBadge({
   return null;
 }
 
+/**
+ * Drag handle shared by the card and the list row. Dragging only starts from this handle, not the
+ * whole card/row — both are full of links and a dropdown, which a whole-item drag listener would
+ * fight with. Keyboard reordering works too: focus the handle, Space to pick up, arrows, Space.
+ */
+function DragHandle({
+  name,
+  attributes,
+  listeners,
+  className,
+}: {
+  name: string;
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Reorder ${name}`}
+      className={`inline-flex size-7 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing ${className ?? ""}`}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="size-4" aria-hidden />
+    </button>
+  );
+}
+
+function useSortableItem(id: string) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // CSS.Translate, not CSS.Transform: the scale component dnd-kit computes when neighbours differ
+  // in size would stretch cards/rows mid-drag.
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  };
+  return { attributes, listeners, setNodeRef, style, isDragging };
+}
+
 function SiteCard({ project }: { project: Project }) {
   const { data } = useDeployStatus(project._id, Boolean(project.vercel_project_id || project.url));
   const [imageFailed, setImageFailed] = useState(false);
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableItem(project._id);
 
   return (
-    <Card className="flex flex-col gap-3 p-0 overflow-hidden">
-      <Link
-        href={`/frontend/${project._id}`}
-        className="flex aspect-[1200/630] max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground"
-      >
-        {project.thumbnail_url && !imageFailed ? (
-          // Plain <img>, not next/image: thumbnail URLs point at arbitrary external domains (each
-          // site's own og:image), not viable with next/image's fixed remote hostname allowlist.
-          // min-h-0: as a flex item, <img> defaults to an automatic min-height based on its own
-          // intrinsic size, which can override the parent's aspect-[1200/630] ratio for tall/square
-          // source images and stretch the whole card — min-h-0 (plus overflow-hidden above) forces
-          // it to respect this box instead. aspect-[1200/630] is applied to both this parent div
-          // and the <img> itself (1.91:1, the standard og:image/twitter:image dimensions) so the
-          // ratio is enforced on the actual rendered image box, not just inferred from the parent's
-          // flex sizing — well-formed thumbnails fill it exactly with no letterboxing.
-          // object-contain (not object-cover): og:image sources aren't always standard-ratio —
-          // logos/portrait art still show in full, scaled to fit and letterboxed on bg-muted rather
-          // than cropped.
-          <img
-            src={project.thumbnail_url}
-            alt={`${project.project_name} thumbnail`}
-            loading="lazy"
-            className="aspect-[1200/630] size-full min-h-0 object-contain"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <ImageOff className="size-6" aria-hidden />
-        )}
-      </Link>
-      <div className="space-y-2 px-4 pb-4">
-        <Link href={`/frontend/${project._id}`} className="flex items-center justify-between gap-2">
-          <span className="truncate font-medium hover:text-primary">{project.project_name}</span>
-          <StatusDot tone={projectLiveTone(data?.deployment, data?.reachability)} />
+    <div ref={setNodeRef} style={style}>
+      <Card className={`relative flex h-full flex-col gap-3 p-0 overflow-hidden ${isDragging ? "shadow-lg ring-1 ring-primary" : ""}`}>
+        <DragHandle
+          name={project.project_name}
+          attributes={attributes}
+          listeners={listeners}
+          className="absolute left-2 top-2 z-10 bg-background/80 backdrop-blur"
+        />
+        <Link
+          href={`/frontend/${project._id}`}
+          className="flex aspect-[1200/630] max-h-48 items-center justify-center overflow-hidden bg-muted text-muted-foreground"
+        >
+          {project.thumbnail_url && !imageFailed ? (
+            // Plain <img>, not next/image: thumbnail URLs point at arbitrary external domains (each
+            // site's own og:image), not viable with next/image's fixed remote hostname allowlist.
+            // min-h-0: as a flex item, <img> defaults to an automatic min-height based on its own
+            // intrinsic size, which can override the parent's aspect-[1200/630] ratio for tall/square
+            // source images and stretch the whole card — min-h-0 (plus overflow-hidden above) forces
+            // it to respect this box instead. aspect-[1200/630] is applied to both this parent div
+            // and the <img> itself (1.91:1, the standard og:image/twitter:image dimensions) so the
+            // ratio is enforced on the actual rendered image box, not just inferred from the parent's
+            // flex sizing — well-formed thumbnails fill it exactly with no letterboxing.
+            // object-contain (not object-cover): og:image sources aren't always standard-ratio —
+            // logos/portrait art still show in full, scaled to fit and letterboxed on bg-muted rather
+            // than cropped.
+            <img
+              src={project.thumbnail_url}
+              alt={`${project.project_name} thumbnail`}
+              loading="lazy"
+              className="aspect-[1200/630] size-full min-h-0 object-contain"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <ImageOff className="size-6" aria-hidden />
+          )}
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
-          <span className="font-mono">{formatRelativeTime(data?.deployment?.createdAt ?? project.last_checked)}</span>
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
-            <Badge variant="outline">{platformLabel(project.platform)}</Badge>
-            <SeoScoreBadge score={project.seo_score} />
-            <DeployStatusBadge deployment={data?.deployment} reachability={data?.reachability} />
+        <div className="space-y-2 px-4 pb-4">
+          <Link href={`/frontend/${project._id}`} className="flex items-center justify-between gap-2">
+            <span className="truncate font-medium hover:text-primary">{project.project_name}</span>
+            <StatusDot tone={projectLiveTone(data?.deployment, data?.reachability)} />
+          </Link>
+          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono">{formatRelativeTime(data?.deployment?.createdAt ?? project.last_checked)}</span>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <Badge variant="outline">{platformLabel(project.platform)}</Badge>
+              <SeoScoreBadge score={project.seo_score} />
+              <DeployStatusBadge deployment={data?.deployment} reachability={data?.reachability} />
+            </div>
+          </div>
+          {project.vercel_project_id ? (
+            <span className="block truncate font-mono text-[10px] text-muted-foreground">{project.vercel_project_id}</span>
+          ) : null}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              {project.url ? (
+                <a
+                  href={project.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Open site <ExternalLink className="size-3" />
+                </a>
+              ) : null}
+              {project.repo_url ? (
+                <a
+                  href={project.repo_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <GitFork className="size-3" aria-hidden /> Repo
+                </a>
+              ) : null}
+            </div>
+            <SiteActionsMenu project={project} />
           </div>
         </div>
-        {project.vercel_project_id ? (
-          <span className="block truncate font-mono text-[10px] text-muted-foreground">{project.vercel_project_id}</span>
-        ) : null}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            {project.url ? (
-              <a
-                href={project.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                Open site <ExternalLink className="size-3" />
-              </a>
-            ) : null}
-            {project.repo_url ? (
-              <a
-                href={project.repo_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
-              >
-                <GitFork className="size-3" aria-hidden /> Repo
-              </a>
-            ) : null}
-          </div>
-          <SiteActionsMenu project={project} />
-        </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -245,9 +318,13 @@ function SiteCard({ project }: { project: Project }) {
  * last-deployed, actions). Thumbnails intentionally don't show here, per the task brief. */
 function SiteListRow({ project }: { project: Project }) {
   const { data } = useDeployStatus(project._id, Boolean(project.vercel_project_id || project.url));
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableItem(project._id);
 
   return (
-    <TableRow>
+    <TableRow ref={setNodeRef} style={style} className={isDragging ? "bg-muted" : undefined}>
+      <TableCell className="w-8 pr-0">
+        <DragHandle name={project.project_name} attributes={attributes} listeners={listeners} />
+      </TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col gap-0.5">
           <Link href={`/frontend/${project._id}`} className="hover:text-primary">
@@ -290,7 +367,14 @@ export default function FrontendSitesPage() {
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
   const [page, setPage] = useState(1);
+  const reorderProjects = useReorderProjects();
+  const sensors = useSensors(
+    // 5px activation distance so a plain click on the handle (e.g. to focus it) isn't a drag.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
+  // Arrives from GET /api/projects already in saved sort_order — see that route.
   const sites = useMemo(() => (projects ?? []).filter((p) => p.type === "frontend"), [projects]);
 
   // Distinct platforms actually present in the roster, not the full ProjectPlatform union — a
@@ -319,6 +403,18 @@ export default function FrontendSitesPage() {
   // page number should just show the last valid page, no extra render/flash needed.
   const currentPage = Math.min(page, totalPages);
   const pageSites = filteredSites.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Drags happen within the visible (filtered, paginated) slice, but the move is applied to the
+  // full frontend roster by index — so dropping A onto B's slot puts A exactly where B was in the
+  // whole list, and every hidden site keeps its place. The full order is what gets persisted.
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    const ids = sites.map((p) => p._id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    reorderProjects.mutate(arrayMove(ids, from, to));
+  }
 
   function handleSearchChange(value: string) {
     setSearch(value);
@@ -417,30 +513,41 @@ export default function FrontendSitesPage() {
               />
             </Card>
           ) : view === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-              {pageSites.map((project) => (
-                <SiteCard key={project._id} project={project} />
-              ))}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={pageSites.map((p) => p._id)} strategy={rectSortingStrategy}>
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                  {pageSites.map((project) => (
+                    <SiteCard key={project._id} project={project} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           ) : (
             <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>SEO</TableHead>
-                    <TableHead>Last deployed</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageSites.map((project) => (
-                    <SiteListRow key={project._id} project={project} />
-                  ))}
-                </TableBody>
-              </Table>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8 pr-0">
+                        <span className="sr-only">Reorder</span>
+                      </TableHead>
+                      <TableHead>Site</TableHead>
+                      <TableHead>Platform</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>SEO</TableHead>
+                      <TableHead>Last deployed</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <SortableContext items={pageSites.map((p) => p._id)} strategy={verticalListSortingStrategy}>
+                    <TableBody>
+                      {pageSites.map((project) => (
+                        <SiteListRow key={project._id} project={project} />
+                      ))}
+                    </TableBody>
+                  </SortableContext>
+                </Table>
+              </DndContext>
             </Card>
           )}
 

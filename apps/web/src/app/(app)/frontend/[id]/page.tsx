@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ExternalLink, GitFork, Search, Trash2, TriangleAlert, XCircle, Zap } from "lucide-react";
-import { Badge, Button, Card, EmptyState, Skeleton } from "@pcc/ui";
-import type { SeoCheckResult, SeoCheckStatus, SeoSegmentKey } from "@pcc/types";
+import { useState } from "react";
+import { ArrowLeft, Check, CheckCircle2, ClipboardCopy, ExternalLink, GitFork, Search, Trash2, TriangleAlert, XCircle, Zap } from "lucide-react";
+import { Badge, Button, Card, EmptyState, Skeleton, toast } from "@pcc/ui";
+import type { Project, SeoCheckResult, SeoCheckStatus, SeoSegmentKey } from "@pcc/types";
 import { useAnalyzeSeo, useDeleteProject, useProjects } from "@/hooks/useProjects";
 import { formatRelativeTime, platformLabel, seoScoreTone } from "@/lib/format";
+import { formatSeoReportForDeveloper } from "@/lib/seo-report";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SEO_TONE_CLASSES, SeoScoreBadge } from "@/components/SeoScoreBadge";
@@ -59,6 +61,29 @@ function CheckRow({ check }: { check: SeoCheckResult }) {
         <p className="text-xs text-muted-foreground">{check.detail}</p>
       </div>
     </div>
+  );
+}
+
+/** Copies the last scan as Markdown for a web developer — see `formatSeoReportForDeveloper`. */
+function CopySeoReportButton({ project }: { project: Project }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(formatSeoReportForDeveloper(project));
+      setCopied(true);
+      toast.success("SEO report copied, ready to paste");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't access the clipboard");
+    }
+  }
+
+  return (
+    <Button variant="ghost" onClick={handleCopy}>
+      {copied ? <Check className="size-4" /> : <ClipboardCopy className="size-4" />}
+      {copied ? "Copied" : "Copy report"}
+    </Button>
   );
 }
 
@@ -152,14 +177,17 @@ export default function FrontendSiteDetailPage() {
                   <p className="text-xs text-muted-foreground">Last analyzed {formatRelativeTime(project.seo_last_analyzed)}</p>
                 ) : null}
               </div>
-              <Button
-                variant="secondary"
-                disabled={analyzeSeo.isPending || !project.url}
-                onClick={() => analyzeSeo.mutate(project._id)}
-              >
-                <Zap className="size-4" />
-                {analyzeSeo.isPending ? "Analyzing…" : "Analyze SEO"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {project.seo_last_analyzed ? <CopySeoReportButton project={project} /> : null}
+                <Button
+                  variant="secondary"
+                  disabled={analyzeSeo.isPending || !project.url}
+                  onClick={() => analyzeSeo.mutate(project._id)}
+                >
+                  <Zap className="size-4" />
+                  {analyzeSeo.isPending ? "Analyzing…" : "Analyze SEO"}
+                </Button>
+              </div>
             </div>
 
             {!project.seo_last_analyzed ? (

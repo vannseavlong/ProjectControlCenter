@@ -18,8 +18,16 @@ const PROJECT_PLATFORMS: ProjectPlatform[] = ["vercel", "render", "other"];
 export async function GET() {
   return withApiErrorHandling(async () => {
     const projects = await projectsTable().findMany({ orderBy: "project_name", order: "asc" });
+    // User-chosen order (PUT /api/projects/reorder) first, then never-reordered rows by name — a
+    // stable sort over the name-ordered result keeps that name order as the tiebreaker. Unset
+    // numeric cells can read back as `null`, not `undefined`, hence the typeof check.
+    projects.sort((a, b) => sortRank(a.sort_order) - sortRank(b.sort_order));
     return apiOk({ projects });
   });
+}
+
+function sortRank(sortOrder: number | null | undefined): number {
+  return typeof sortOrder === "number" ? sortOrder : Number.POSITIVE_INFINITY;
 }
 
 export async function POST(request: Request) {

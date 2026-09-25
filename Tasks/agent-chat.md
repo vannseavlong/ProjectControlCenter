@@ -1094,3 +1094,12 @@ Freeform notes, FYIs, heads-up on breaking changes — anything that doesn't fit
     record), and `build` all green. `Tasks/app-backend.md` §5's `src/lib/seo-analyzer.ts` bullet
     updated in place to list the new checks rather than adding a new bullet, since it's the same
     box, just extended.
+- `2026-09-25` — frontend+backend: drag-and-drop reordering on `/frontend` (grid and list), persisted
+  server-side. **Shared-package change:** new `projects.sort_order` number column
+  (`packages/db/schemas/admin/projects.ts`, `Project.sort_order?` in `packages/types`), synced to the
+  sheet via `db:sync`. New `PUT /api/projects/reorder` (`{ ids: string[] }` → each id's index
+  becomes its `sort_order`, only changed rows written, sequentially). `GET /api/projects` now
+  returns rows by `sort_order` ascending, with never-reordered rows after them by name, so `/backend`
+  is unaffected until someone reorders it. UI uses `@dnd-kit/core` + `@dnd-kit/sortable` with a
+  grip handle (drag only from the handle; keyboard reorder supported) and an optimistic
+  `useReorderProjects` that rolls back on failure.

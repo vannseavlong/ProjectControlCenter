@@ -31,5 +31,9 @@ export default defineTable({
     seo_segment_scores: json(),
     seo_report: json(),
     seo_last_analyzed: date(),
+    // User-chosen display position (drag-and-drop on /frontend) — ascending, scoped per `type`.
+    // Unset on rows that have never been reordered; GET /api/projects sorts those after the
+    // ordered ones, alphabetically, so legacy rows keep their old name order.
+    sort_order: number(),
   },
 });

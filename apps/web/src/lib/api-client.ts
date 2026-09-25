@@ -109,6 +109,9 @@ export const api = {
      */
     deployStatus: (id: string) =>
       fetchJson<DeployStatusResult>(`/api/projects/${id}/deploy-status`),
+    /** Persists a drag-and-drop order — `ids` in their new display order, see `PUT /api/projects/reorder`. */
+    reorder: (ids: string[]) =>
+      fetchJson<{ updated: number }>("/api/projects/reorder", { method: "PUT", body: JSON.stringify({ ids }) }),
     update: (id: string, input: UpdateProjectInput) =>
       fetchJson<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(input) }).then(
         (r) => r.project,

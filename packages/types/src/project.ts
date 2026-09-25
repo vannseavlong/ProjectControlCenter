@@ -24,4 +24,6 @@ export interface Project extends WithTimestamps {
   seo_segment_scores?: SeoSegmentScores;
   seo_report?: SeoCheckResult[];
   seo_last_analyzed?: string;
+  /** Drag-and-drop display position, ascending within a `type` — unset until first reordered. */
+  sort_order?: number;
 }
