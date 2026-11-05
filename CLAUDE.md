@@ -162,8 +162,9 @@ the full var list (`GOOGLE_OAUTH_CLIENT_ID/SECRET`, `AUTH_ALLOWED_EMAIL`, `AUTH_
 ### Design system
 
 Dark-first "Mission Control" (spaceship command deck) theme — see the Design System section of
-`Tasks/app-frontend.md` for the palette/motion rules. `UI-Clone/shadcn-admin` is a cloned
-reference repo (Vite, not Next.js — don't fork it, port patterns from it): its
+`Tasks/app-frontend.md` for the palette/motion rules. The upstream
+[shadcn-admin](https://github.com/satnaing/shadcn-admin) repo is the reference (Vite, not
+Next.js — don't fork it, port patterns from it; no longer cloned locally): its
 `src/styles/theme.css` oklch CSS-variable structure is the base the Mission Control palette
 overrides, and its `src/components/ui/` has a larger shadcn/ui primitive set than
 `packages/ui` currently does.

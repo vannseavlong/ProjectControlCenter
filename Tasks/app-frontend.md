@@ -5,8 +5,9 @@ dependency) and use [shadcn-admin](https://github.com/satnaing/shadcn-admin) as 
 reference only — it's a Vite app, not Next.js, so don't fork it; port the patterns (sidebar shell,
 data table, command palette) that fit our App Router structure.
 
-> **Reference clone:** `UI-Clone/shadcn-admin` — check here first before building any component
-> from scratch. Concretely reusable pieces:
+> **Reference repo:** [shadcn-admin](https://github.com/satnaing/shadcn-admin) (the local
+> `UI-Clone/` copy has been removed — clone it elsewhere if you need it) — check it first before
+> building any component from scratch. Concretely reusable pieces:
 > - `src/components/layout/` (`app-sidebar.tsx`, `header.tsx`, `main.tsx`, `nav-group.tsx`,
 >   `nav-user.tsx`) — the sidebar shell for task 0 below
 > - `src/components/ui/` — a much larger primitive set than we have yet (`sidebar`, `sheet`,
