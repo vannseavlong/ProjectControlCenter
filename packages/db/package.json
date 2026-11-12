@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@pcc/types": "workspace:*",
-    "longcelot-sheet-db": "0.1.39"
+    "longcelot-sheet-db": "0.1.48"
   },
   "devDependencies": {
     "@pcc/config": "workspace:*",
